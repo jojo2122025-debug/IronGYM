@@ -16,6 +16,10 @@ fi
 
 # Forward framework exceptions to Render's application log.
 export LOG_CHANNEL="${LOG_CHANNEL:-stderr}"
+# The sanitized schema intentionally has no sessions table.  File-backed
+# sessions and cache work on Render's ephemeral free instances.
+export SESSION_DRIVER="${SESSION_DRIVER:-file}"
+export CACHE_STORE="${CACHE_STORE:-file}"
 
 php artisan migrate --force
 php artisan db:seed --force
