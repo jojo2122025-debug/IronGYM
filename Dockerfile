@@ -10,9 +10,9 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 COPY composer.json composer.lock ./
+COPY . .
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
-COPY . .
 RUN chmod -R ug+rwx storage bootstrap/cache docker
 
 CMD ["sh", "docker/start.sh"]
