@@ -9,7 +9,7 @@
                     <p class="login-logo-subtitle">لوحة إدارة الصالة الرياضية</p>
                     <h1 class="login-logo-title"><span class="brand-iron">IRON</span><span class="brand-gym">GYM</span><small>آيرون جيم</small></h1>
                 </div>
-                <div class="login-logo-icon"><img src="{{ asset('images/irongym-logo.png') }}" alt="شعار IRONGYM"></div>
+                <div class="login-logo-icon"><img src="/images/irongym-logo.png" alt="شعار IRONGYM"></div>
             </header>
 
             <div class="login-header-text">
@@ -68,7 +68,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-container">
-                    <div class="logo-icon"><img src="{{ asset('images/irongym-logo.png') }}" alt="IRONGYM"></div>
+                    <div class="logo-icon"><img src="/images/irongym-logo.png" alt="IRONGYM"></div>
                     <div class="logo-text">
                         <span class="logo-title"><span class="brand-iron">IRON</span><span class="brand-gym">GYM</span></span>
                         <span class="logo-subtitle">لوحة إدارة الصالة الرياضية</span>
