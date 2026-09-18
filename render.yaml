@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: irongym
+    runtime: docker
+    plan: starter
+    healthCheckPath: /
+    disk:
+      name: irongym-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: APP_NAME
+        value: IRONGYM
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: DB_DATABASE
+        value: /var/data/database.sqlite
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_STORE
+        value: file
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false

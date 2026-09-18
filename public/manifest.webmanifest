@@ -1,0 +1,11 @@
+{
+  "name": "آيرون جيم IRONGYM",
+  "short_name": "IRONGYM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f141f",
+  "theme_color": "#e84f45",
+  "lang": "ar",
+  "dir": "rtl",
+  "description": "نظام إدارة الصالة الرياضية مع مزامنة تلقائية عند عودة الاتصال"
+}
