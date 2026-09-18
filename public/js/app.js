@@ -5420,8 +5420,16 @@ function renderActivityLog() {
                     </tr>
                 `).join("");
             }
+        } else {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color: var(--accent-red);">${res.error || 'تعذر تحميل سجل الحركات.'}</td></tr>`;
         }
         applyTableFiltersForBody("activity-log-table-body");
+    })
+    .catch(() => {
+        const tbody = document.getElementById("activity-log-table-body");
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color: var(--accent-red);">تعذر تحميل سجل الحركات. أعد المحاولة لاحقاً.</td></tr>`;
+        }
     });
 }
 
@@ -6060,13 +6068,14 @@ function handleImportFile(file) {
                 const json = XLSX.utils.sheet_to_json(sheet);
                 rawPays = json.map(row => {
                     return {
+                        member_id: String(row['رقم العضوية'] || row['رقم المشترك'] || row['member_id'] || row['Member ID'] || '').trim(),
                         member_name: String(row['اسم المشترك'] || row['الاسم'] || row['member_name'] || row['Member Name'] || '').trim(),
                         amount: Number(row['المبلغ المدفوع'] || row['المبلغ'] || row['amount'] || row['Amount'] || 0),
                         method: String(row['طريقة الدفع'] || row['الطريقة'] || row['method'] || row['Method'] || 'نقدي').trim(),
                         date: String(row['تاريخ الدفع'] || row['التاريخ'] || row['date'] || row['Date'] || '').trim(),
                         note: String(row['ملاحظة'] || row['ملاحظات'] || row['note'] || row['Note'] || '').trim()
                     };
-                }).filter(p => p.member_name !== "" && p.amount > 0);
+                }).filter(p => (p.member_id !== "" || p.member_name !== "") && p.amount > 0);
             }
 
             // Assign to state variables
@@ -6152,7 +6161,7 @@ function renderImportPreviewTables() {
         } else {
             paysBody.innerHTML = parsedImportData.payments.slice(0, 10).map(p => `
                 <tr>
-                    <td><strong>${p.member_name}</strong></td>
+                    <td><strong>${p.member_name || p.member_id}</strong></td>
                     <td class="val-mono val-positive">${formatMoney(p.amount)}</td>
                     <td>${p.method}</td>
                     <td class="val-mono">${p.date}</td>
@@ -6197,7 +6206,8 @@ function submitSmartImport() {
     fetch('/api/import_data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsedImportData)
+        body: JSON.stringify(parsedImportData),
+        credentials: 'same-origin'
     })
     .then(r => r.json())
     .then(res => {

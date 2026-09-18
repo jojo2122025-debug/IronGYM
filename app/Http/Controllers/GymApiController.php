@@ -3128,14 +3128,24 @@ class GymApiController extends Controller
 
             // 3. Process Payments
             foreach ($payments as $p) {
+                $memberId = trim($p['member_id'] ?? '');
                 $memberName = trim($p['member_name'] ?? '');
                 $amount = (float) ($p['amount'] ?? 0);
                 $method = trim($p['method'] ?? 'نقدي');
                 $date = trim($p['date'] ?? '');
                 $note = trim($p['note'] ?? '');
-                if (empty($memberName) || $amount <= 0 || empty($date)) {
+                if (($memberId === '' && $memberName === '') || $amount <= 0 || empty($date)) {
                     continue;
                 }
+                $member = $memberId !== ''
+                    ? Member::find($memberId)
+                    : Member::where('name', $memberName)->orderBy('id')->first();
+                if (!$member) {
+                    $skippedPays++;
+                    continue;
+                }
+                $memberName = $member->name;
+                $memberId = $member->id;
                 if (!in_array($method, ['نقدي', 'تحويل'])) {
                     $method = 'نقدي';
                 }
@@ -3150,6 +3160,7 @@ class GymApiController extends Controller
                 }
                 Payment::create([
                     'id' => Payment::generateNextId(),
+                    'member_id' => $memberId,
                     'member_name' => $memberName,
                     'date' => $date,
                     'amount' => $amount,
@@ -3390,7 +3401,7 @@ class GymApiController extends Controller
      */
     protected function authorizeActionAccess(string $action): void
     {
-        $platformOnlyActions = ['import_data', 'get_activity_log'];
+        $platformOnlyActions = ['import_data'];
 
         if (in_array($action, $platformOnlyActions, true)) {
             $this->requireAdmin();
