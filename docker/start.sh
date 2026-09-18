@@ -1,8 +1,11 @@
 #!/usr/bin/env sh
 set -eu
 
-mkdir -p "$(dirname "$DB_DATABASE")" storage/framework/cache storage/framework/sessions storage/framework/views
-touch "$DB_DATABASE"
+database_path="${DB_DATABASE:-/tmp/irongym.sqlite}"
+
+mkdir -p "$(dirname "$database_path")" storage/framework/cache storage/framework/sessions storage/framework/views
+touch "$database_path"
+export DB_DATABASE="$database_path"
 
 php artisan migrate --force
 php artisan db:seed --force
