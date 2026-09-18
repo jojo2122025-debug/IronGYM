@@ -273,21 +273,13 @@ class GymApiController extends Controller
             }
         }
 
-        // Peak hours (24h buckets)
-        $peakHours = [];
-        foreach (range(0, 23) as $i) {
-            $h = str_pad((string) $i, 2, '0', STR_PAD_LEFT);
-            $peakHours[$h] = 0;
-        }
-        $checkinsByHour = DB::table('checkins')
-            ->selectRaw("SUBSTRING(created_at, 12, 2) as chk_hour, COUNT(*) as cnt")
-            ->groupBy('chk_hour')
-            ->get();
-        foreach ($checkinsByHour as $row) {
-            if (isset($peakHours[$row->chk_hour])) {
-                $peakHours[$row->chk_hour] = (int) $row->cnt;
-            }
-        }
+        // Peak hours for each dashboard period (24-hour buckets).
+        $peakHours = $this->peakHoursSince(Carbon::today());
+        $peakHoursByRange = [
+            'day' => $peakHours,
+            'week' => $this->peakHoursSince(Carbon::now()->startOfWeek()),
+            'month' => $this->peakHoursSince(Carbon::now()->startOfMonth()),
+        ];
 
         $monthly = Carbon::now()->format('Y-m');
         $today = Carbon::now()->toDateString();
@@ -349,12 +341,35 @@ class GymApiController extends Controller
                 'productSales' => $productSales,
                 'revenueHistory' => $dailyRevenues,
                 'peakHours' => $peakHours,
+                'peakHoursByRange' => $peakHoursByRange,
                 'reports' => $reports,
                 'currentUser' => session('user'),
                 'memberData' => $memberData,
                 'trainerData' => $trainerData,
             ],
         ]);
+    }
+
+    /** @return array<string, int> */
+    protected function peakHoursSince(Carbon $from): array
+    {
+        $hours = [];
+        foreach (range(0, 23) as $i) {
+            $hours[str_pad((string) $i, 2, '0', STR_PAD_LEFT)] = 0;
+        }
+
+        $rows = DB::table('checkins')
+            ->where('created_at', '>=', $from->format('Y-m-d H:i:s'))
+            ->selectRaw("SUBSTRING(created_at, 12, 2) as chk_hour, COUNT(*) as cnt")
+            ->groupBy('chk_hour')
+            ->get();
+        foreach ($rows as $row) {
+            if (isset($hours[$row->chk_hour])) {
+                $hours[$row->chk_hour] = (int) $row->cnt;
+            }
+        }
+
+        return $hours;
     }
 
     protected function getTenantState(): JsonResponse

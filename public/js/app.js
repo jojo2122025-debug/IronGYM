@@ -2027,7 +2027,7 @@ function renderDashboard() {
 
     renderDashboardDetails(activeMembersSet.size, expiringSubs.length);
     initRevenueChart("chart-revenue-dashboard", "dashboard", 14);
-    initAttendanceChart("chart-attendance-dashboard", "dashboard");
+    initAttendanceChart("chart-attendance-dashboard", "dashboard", 'day');
     document.querySelectorAll('[data-revenue-days]').forEach(button => {
         button.onclick = () => {
             document.querySelectorAll('[data-revenue-days]').forEach(tab => tab.classList.toggle('active', tab === button));
@@ -2037,7 +2037,7 @@ function renderDashboard() {
     document.querySelectorAll('[data-peak-range]').forEach(button => {
         button.onclick = () => {
             document.querySelectorAll('[data-peak-range]').forEach(tab => tab.classList.toggle('active', tab === button));
-            initAttendanceChart("chart-attendance-dashboard", "dashboard");
+            initAttendanceChart("chart-attendance-dashboard", "dashboard", button.dataset.peakRange);
         };
     });
 }
@@ -3871,7 +3871,7 @@ function initRevenueChart(canvasId, type, days = 7) {
     });
 }
 
-function initAttendanceChart(canvasId, type) {
+function initAttendanceChart(canvasId, type, range = 'day') {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
@@ -3883,7 +3883,8 @@ function initAttendanceChart(canvasId, type) {
     const hours = type === 'dashboard'
         ? Array.from({ length: 18 }, (_, index) => String(index + 6).padStart(2, '0'))
         : ["01", "03", "05", "07", "09", "11", "13", "15", "17", "19", "21", "23"];
-    const dataValues = hours.map(h => state.peakHours[h] || 0);
+    const peakData = state.peakHoursByRange?.[range] || state.peakHours || {};
+    const dataValues = hours.map(h => peakData[h] || 0);
 
     charts[chartKey] = new Chart(ctx, {
         type: 'bar',
