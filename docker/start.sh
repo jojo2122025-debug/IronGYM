@@ -14,6 +14,9 @@ if [ -z "${APP_KEY:-}" ]; then
     export APP_KEY="$(php artisan key:generate --show)"
 fi
 
+# Forward framework exceptions to Render's application log.
+export LOG_CHANNEL="${LOG_CHANNEL:-stderr}"
+
 php artisan migrate --force
 php artisan db:seed --force
 
