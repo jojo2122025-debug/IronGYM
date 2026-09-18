@@ -25,10 +25,8 @@ class GymDatabaseSeeder extends Seeder
     {
         // Use a transaction for consistency
         DB::transaction(function () {
-            $this->seedGymsAndBranches();
             $this->seedMembers();
             $this->seedPlans();
-            $this->seedGymMembersAndSubscriptions();
             $this->seedSubscriptions();
             $this->seedPayments();
             $this->seedProducts();
@@ -36,7 +34,6 @@ class GymDatabaseSeeder extends Seeder
             $this->seedCheckins();
             $this->seedMeasurements();
             $this->seedUsers();
-            $this->assignDefaultGymBranchToLegacyRecords();
         });
     }
 
