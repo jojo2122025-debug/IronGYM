@@ -13,6 +13,7 @@ COPY composer.json composer.lock ./
 COPY . .
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
-RUN chmod -R ug+rwx storage bootstrap/cache docker
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache docker \
+    && chmod -R ug+rwx storage bootstrap/cache docker
 
 CMD ["sh", "docker/start.sh"]
