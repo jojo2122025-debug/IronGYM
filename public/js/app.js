@@ -2012,13 +2012,97 @@ function renderDashboard() {
     
     let expiredSubs = state.subscriptions.filter(s => s.status === "منتهي").length;
     let frozenSubs = state.subscriptions.filter(s => s.status === "مجمد").length;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiringSubs = state.subscriptions.filter(s => {
+        if (s.status !== "فعال" || !s.end_date) return false;
+        const endDate = new Date(`${String(s.end_date).slice(0, 10)}T00:00:00`);
+        const days = Math.round((endDate - today) / 86400000);
+        return days >= 0 && days <= 3;
+    });
     safeSetText("dash-frozen-members", frozenSubs);
     safeSetText("dash-expired-members", expiredSubs);
     safeSetText("dash-total-members", state.members.length);
+    safeSetText("dash-expiring-members", expiringSubs.length);
 
-    // Initialize graphs
-    initRevenueChart("chart-revenue-dashboard", "dashboard");
+    renderDashboardDetails(activeMembersSet.size, expiringSubs.length);
+    initRevenueChart("chart-revenue-dashboard", "dashboard", 14);
     initAttendanceChart("chart-attendance-dashboard", "dashboard");
+    document.querySelectorAll('[data-revenue-days]').forEach(button => {
+        button.onclick = () => {
+            document.querySelectorAll('[data-revenue-days]').forEach(tab => tab.classList.toggle('active', tab === button));
+            initRevenueChart("chart-revenue-dashboard", "dashboard", Number(button.dataset.revenueDays));
+        };
+    });
+    document.querySelectorAll('[data-peak-range]').forEach(button => {
+        button.onclick = () => {
+            document.querySelectorAll('[data-peak-range]').forEach(tab => tab.classList.toggle('active', tab === button));
+            initAttendanceChart("chart-attendance-dashboard", "dashboard");
+        };
+    });
+}
+
+function renderDashboardDetails(activeMembersCount, expiringCount) {
+    const recentMembers = [...state.members].sort((a, b) => String(b.created_at || b.id).localeCompare(String(a.created_at || a.id))).slice(0, 5);
+    const recentTarget = document.getElementById("dash-recent-members");
+    if (recentTarget) {
+        recentTarget.innerHTML = recentMembers.length ? recentMembers.map(member => {
+            const subscription = state.subscriptions.find(s => (s.member_id || s.memberId) === member.id && s.status === 'فعال')
+                || state.subscriptions.find(s => (s.member_id || s.memberId) === member.id);
+            const status = subscription?.status || 'بدون اشتراك';
+            const statusClass = status === 'فعال' ? 'is-active' : status === 'منتهي' ? 'is-ended' : 'is-frozen';
+            return `<div class="recent-member-row">
+                <div class="member-initial">${escapeHtml(String(member.name || 'م').trim().charAt(0) || 'م')}</div>
+                <div class="recent-member-details"><strong>${escapeHtml(member.name || 'مشترك')}</strong><span>${escapeHtml(subscription?.plan_name || 'لا يوجد اشتراك')}</span></div>
+                <div class="recent-member-status"><span class="dashboard-status ${statusClass}">${escapeHtml(status)}</span><small>${dashboardRelativeTime(member.created_at)}</small></div>
+            </div>`;
+        }).join('') : '<div class="dashboard-empty">لا يوجد مشتركون مسجلون بعد.</div>';
+    }
+
+    const memberCount = state.members.length || 0;
+    const conversion = memberCount ? (activeMembersCount / memberCount) * 100 : 0;
+    const subscriptionAmounts = state.subscriptions.map(s => toNumber(s.amount)).filter(amount => amount > 0);
+    const averageSubscription = subscriptionAmounts.length ? subscriptionAmounts.reduce((sum, amount) => sum + amount, 0) / subscriptionAmounts.length : 0;
+    const insights = [
+        ['معدل التحويل', `${conversion.toFixed(1)}%`, 'من المشتركين النشطين'],
+        ['متوسط قيمة الاشتراك', formatMoney(averageSubscription), 'حسب الاشتراكات المسجلة'],
+        ['معدل التجديد', `${toNumber(state.renewalRate).toFixed(0)}%`, 'آخر 30 يوماً'],
+        ['المدفوعات المعلقة', state.reports?.debtMembersCount || 0, 'مشترك بحاجة متابعة'],
+    ];
+    const insightsTarget = document.getElementById('dash-insights');
+    if (insightsTarget) {
+        insightsTarget.innerHTML = insights.map(([label, value, detail]) => `<div class="insight-row"><div><strong>${value}</strong><span>${label}</span></div><small>${detail}</small></div>`).join('');
+    }
+
+    const now = new Date();
+    const absentCount = state.members.filter(member => {
+        const lastCheckin = state.checkins.find(checkin => (checkin.member_id || checkin.memberId) === member.id);
+        if (!lastCheckin) return false;
+        const lastDate = new Date(lastCheckin.created_at || lastCheckin.checkin_time || 0);
+        return !Number.isNaN(lastDate.getTime()) && (now - lastDate) > 30 * 86400000;
+    }).length;
+    const todayKey = now.toISOString().slice(0, 10);
+    const todayPayments = state.payments.filter(p => String(p.date || '').slice(0, 10) === todayKey).length;
+    const alerts = [
+        [expiringCount, 'اشتراك ينتهي خلال 3 أيام', 'calendar-clock'],
+        [todayPayments, 'دفعات تم استلامها اليوم', 'circle-dollar-sign'],
+        [absentCount, 'أعضاء لم يزوروا منذ شهر', 'user-round-x'],
+    ];
+    const alertsTarget = document.getElementById('dash-alerts');
+    if (alertsTarget) {
+        alertsTarget.innerHTML = alerts.map(([count, label, icon]) => `<div class="dashboard-alert-row"><div class="dashboard-alert-icon"><i data-lucide="${icon}"></i></div><div><strong>${count} ${label}</strong><span>تحديث مباشر من بيانات النظام</span></div></div>`).join('');
+    }
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function dashboardRelativeTime(value) {
+    const date = new Date(value || 0);
+    if (Number.isNaN(date.getTime()) || !value) return 'حديثاً';
+    const hours = Math.max(0, Math.floor((Date.now() - date.getTime()) / 3600000));
+    if (hours < 1) return 'منذ أقل من ساعة';
+    if (hours < 24) return `منذ ${hours} ساعة`;
+    const days = Math.floor(hours / 24);
+    return `منذ ${days} يوم`;
 }
 
 // View 2: Check-In Gate
@@ -3729,7 +3813,7 @@ function runNotificationJobs() {
 }
 
 // 5. Chart.js render engines (with MySQL values)
-function initRevenueChart(canvasId, type) {
+function initRevenueChart(canvasId, type, days = 7) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
@@ -3738,22 +3822,15 @@ function initRevenueChart(canvasId, type) {
         charts[chartKey].destroy();
     }
 
-    // Build 7-day revenue trend from sales list for a stable chart source.
+    // Dashboard revenue is based on payments, including zero-value days for an honest trend.
     const labels = [];
     const values = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = days - 1; i >= 0; i--) {
         const day = new Date();
         day.setDate(day.getDate() - i);
         const key = day.toISOString().slice(0, 10);
-        labels.push(key.slice(5));
-
-        const total = (state.sales || []).reduce((sum, sale) => {
-            const saleDate = String(sale.date || '').slice(0, 10);
-            if (saleDate !== key) return sum;
-            return sum + toNumber(sale.total);
-        }, 0);
-
-        values.push(Number(total.toFixed(2)));
+        labels.push(days === 1 ? 'اليوم' : key.slice(5));
+        values.push(Number(toNumber(state.revenueHistory?.[key]).toFixed(2)));
     }
 
     charts[chartKey] = new Chart(ctx, {
@@ -3803,7 +3880,9 @@ function initAttendanceChart(canvasId, type) {
         charts[chartKey].destroy();
     }
 
-    const hours = ["01", "03", "05", "07", "09", "11", "13", "15", "17", "19", "21", "23"];
+    const hours = type === 'dashboard'
+        ? Array.from({ length: 18 }, (_, index) => String(index + 6).padStart(2, '0'))
+        : ["01", "03", "05", "07", "09", "11", "13", "15", "17", "19", "21", "23"];
     const dataValues = hours.map(h => state.peakHours[h] || 0);
 
     charts[chartKey] = new Chart(ctx, {

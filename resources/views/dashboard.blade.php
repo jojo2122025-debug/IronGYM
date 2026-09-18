@@ -180,54 +180,93 @@
                 <div class="metrics-grid">
                     <div class="card metric-card">
                         <div class="metric-details">
-                            <span class="metric-title">إيرادات اليوم</span>
-                            <span class="metric-value" id="dash-today-revenue">0</span>
-                            <span class="metric-sub">هذا اليوم</span>
+                            <span class="metric-title">إجمالي المشتركين</span>
+                            <span class="metric-value" id="dash-total-members">0</span>
+                            <span class="metric-sub">المسجلين بالنظام</span>
                         </div>
                         <div class="metric-icon-box icon-red">
-                            <i data-lucide="coins"></i>
+                            <i data-lucide="users"></i>
                         </div>
                     </div>
                     <div class="card metric-card">
                         <div class="metric-details">
-                            <span class="metric-title">إيرادات الشهر</span>
-                            <span class="metric-value" id="dash-month-revenue">120</span>
-                            <span class="metric-sub">هذا الشهر</span>
-                        </div>
-                        <div class="metric-icon-box icon-green">
-                            <i data-lucide="trending-up"></i>
-                        </div>
-                    </div>
-                    <div class="card metric-card">
-                        <div class="metric-details">
-                            <span class="metric-title">مشتركون نشطون</span>
-                            <span class="metric-value" id="dash-active-members">2</span>
-                            <span class="metric-sub" id="dash-active-subtext">من 5 مشترك</span>
-                        </div>
-                        <div class="metric-icon-box icon-green">
-                            <i data-lucide="activity"></i>
-                        </div>
-                    </div>
-                    <div class="card metric-card">
-                        <div class="metric-details">
-                            <span class="metric-title">حضور اليوم</span>
-                            <span class="metric-value" id="dash-today-attendance">0</span>
-                            <span class="metric-sub">حضور فعلي</span>
+                            <span class="metric-title">مجمدة</span>
+                            <span class="metric-value" id="dash-frozen-members">0</span>
+                            <span class="metric-sub">اشتراكات موقوفة</span>
                         </div>
                         <div class="metric-icon-box icon-blue">
-                            <i data-lucide="scan"></i>
+                            <i data-lucide="snowflake"></i>
                         </div>
                     </div>
                     <div class="card metric-card">
                         <div class="metric-details">
-                            <span class="metric-title">ينتهي خلال ٣ أيام</span>
+                            <span class="metric-title">منتهية</span>
+                            <span class="metric-value" id="dash-expired-members">0</span>
+                            <span class="metric-sub">بحاجة للتجديد</span>
+                        </div>
+                        <div class="metric-icon-box icon-red">
+                            <i data-lucide="calendar-x"></i>
+                        </div>
+                    </div>
+                    <div class="card metric-card">
+                        <div class="metric-details">
+                            <span class="metric-title">ينتهي خلال 3 أيام</span>
                             <span class="metric-value" id="dash-expiring-members">0</span>
                             <span class="metric-sub">تنبيهات التجديد</span>
                         </div>
                         <div class="metric-icon-box icon-yellow">
-                            <i data-lucide="alert-triangle"></i>
+                            <i data-lucide="bell-ring"></i>
                         </div>
                     </div>
+                </div>
+
+                <div class="charts-grid dashboard-charts-grid">
+                    <section class="card chart-card dashboard-chart-card">
+                        <div class="dashboard-section-head">
+                            <div>
+                                <span class="chart-subtitle-tag">آخر 14 يوم</span>
+                                <h2 class="chart-main-title">الإيرادات</h2>
+                            </div>
+                            <div class="dashboard-period-tabs" role="group" aria-label="فترة الإيرادات">
+                                <button class="dashboard-period-tab" type="button" data-revenue-days="1">اليوم</button>
+                                <button class="dashboard-period-tab" type="button" data-revenue-days="7">الأسبوع</button>
+                                <button class="dashboard-period-tab active" type="button" data-revenue-days="14">الشهر</button>
+                            </div>
+                        </div>
+                        <div class="dashboard-canvas-wrap"><canvas id="chart-revenue-dashboard"></canvas></div>
+                    </section>
+                    <section class="card chart-card dashboard-chart-card">
+                        <div class="dashboard-section-head">
+                            <div>
+                                <span class="chart-subtitle-tag">اليوم</span>
+                                <h2 class="chart-main-title">أوقات الذروة</h2>
+                            </div>
+                            <div class="dashboard-period-tabs" role="group" aria-label="فترة أوقات الذروة">
+                                <button class="dashboard-period-tab active" type="button" data-peak-range="day">اليوم</button>
+                                <button class="dashboard-period-tab" type="button" data-peak-range="week">الأسبوع</button>
+                                <button class="dashboard-period-tab" type="button" data-peak-range="month">الشهر</button>
+                            </div>
+                        </div>
+                        <div class="dashboard-canvas-wrap"><canvas id="chart-attendance-dashboard"></canvas></div>
+                    </section>
+                </div>
+
+                <div class="dashboard-bottom-grid">
+                    <section class="card dashboard-panel">
+                        <div class="dashboard-section-head">
+                            <div><h2 class="chart-main-title">أحدث المشتركين</h2><span class="chart-subtitle-tag">آخر 5 مشتركين</span></div>
+                        </div>
+                        <div id="dash-recent-members" class="recent-members-list"></div>
+                        <button class="dashboard-link-btn" type="button" onclick="switchView('members')">عرض جميع المشتركين <i data-lucide="arrow-left"></i></button>
+                    </section>
+                    <section class="card dashboard-panel">
+                        <div class="dashboard-section-head"><div><h2 class="chart-main-title">رؤى سريعة</h2><span class="chart-subtitle-tag">ملخص الأداء</span></div></div>
+                        <div id="dash-insights" class="dashboard-insights"></div>
+                    </section>
+                    <section class="card dashboard-panel">
+                        <div class="dashboard-section-head"><div><h2 class="chart-main-title">التنبيهات الأخيرة</h2><span class="chart-subtitle-tag">تحتاج متابعة</span></div></div>
+                        <div id="dash-alerts" class="dashboard-alerts"></div>
+                    </section>
                 </div>
             </div>
 
