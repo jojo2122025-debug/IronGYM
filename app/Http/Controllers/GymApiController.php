@@ -1699,6 +1699,7 @@ class GymApiController extends Controller
             'date' => 'required|date', 'category' => 'required|string|max:120',
             'amount' => 'required|numeric|min:0.01', 'method' => 'required|in:نقدي,تحويل',
             'recipient' => 'required_if:method,تحويل|nullable|string|max:180', 'note' => 'nullable|string|max:2000',
+            'receipt' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ]);
         if ($validator->fails()) return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
         $expense = Expense::create([
@@ -1706,6 +1707,7 @@ class GymApiController extends Controller
             'amount' => $data['amount'], 'method' => $data['method'],
             'recipient' => trim((string) ($data['recipient'] ?? '')) ?: null,
             'note' => trim((string) ($data['note'] ?? '')) ?: null,
+            'receipt_path' => $this->storeExpenseReceipt($request),
         ]);
         ActivityLog::log('إضافة مصروف', "تم تسجيل مصروف {$expense->category} بقيمة {$expense->amount} شيكل");
         return response()->json(['success' => true, 'expense' => $expense]);
@@ -1721,15 +1723,21 @@ class GymApiController extends Controller
             'id' => 'required|integer|exists:expenses,id', 'date' => 'required|date',
             'category' => 'required|string|max:120', 'amount' => 'required|numeric|min:0.01',
             'method' => 'required|in:نقدي,تحويل', 'recipient' => 'required_if:method,تحويل|nullable|string|max:180', 'note' => 'nullable|string|max:2000',
+            'receipt' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ]);
         if ($validator->fails()) return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
         $expense = Expense::findOrFail((int) $data['id']);
-        $expense->update([
+        $updateData = [
             'date' => Carbon::parse($data['date']), 'category' => trim((string) $data['category']),
             'amount' => $data['amount'], 'method' => $data['method'],
             'recipient' => trim((string) ($data['recipient'] ?? '')) ?: null,
             'note' => trim((string) ($data['note'] ?? '')) ?: null,
-        ]);
+        ];
+        if ($request->hasFile('receipt')) {
+            $this->deleteExpenseReceipt($expense->receipt_path);
+            $updateData['receipt_path'] = $this->storeExpenseReceipt($request);
+        }
+        $expense->update($updateData);
         ActivityLog::log('تعديل مصروف', "تم تعديل المصروف رقم {$expense->id}");
         return response()->json(['success' => true, 'expense' => $expense]);
     }
@@ -1741,9 +1749,26 @@ class GymApiController extends Controller
         $expense = Expense::find((int) $request->input('id'));
         if (!$expense) return response()->json(['success' => false, 'error' => 'المصروف غير موجود'], 404);
         $description = $expense->category;
+        $this->deleteExpenseReceipt($expense->receipt_path);
         $expense->delete();
         ActivityLog::log('حذف مصروف', "تم حذف المصروف: {$description}");
         return response()->json(['success' => true]);
+    }
+
+    protected function storeExpenseReceipt(Request $request): ?string
+    {
+        if (!$request->hasFile('receipt') || !$request->file('receipt')->isValid()) return null;
+        $file = $request->file('receipt');
+        $fileName = uniqid('expense_receipt_', true) . '.' . strtolower($file->getClientOriginalExtension());
+        $targetDir = public_path('uploads/expense-receipts');
+        if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
+        $file->move($targetDir, $fileName);
+        return 'uploads/expense-receipts/' . $fileName;
+    }
+
+    protected function deleteExpenseReceipt(?string $path): void
+    {
+        if ($path && str_starts_with($path, 'uploads/expense-receipts/')) @unlink(public_path($path));
     }
 
     /**

@@ -1390,6 +1390,7 @@ function ensureFallbackModal(modalId) {
                     <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="expense-input-method" class="form-control" onchange="togglePaymentTransferAccountField('expense-input-method','expense-transfer-account-group','expense-input-recipient')"><option>نقدي</option><option>تحويل</option></select></div>
                     <div id="expense-transfer-account-group" class="form-group" style="display:none;"><label class="form-label">اسم الشخص أو الحساب المُحوِّل</label><input id="expense-input-recipient" class="form-control" type="text" placeholder="مثال: أحمد محمد أو حساب البنك الأهلي"></div>
                     <div class="form-group"><label class="form-label">ملاحظة</label><input id="expense-input-note" class="form-control" type="text" placeholder="اختياري"></div>
+                    <div class="form-group"><label class="form-label">إرفاق فاتورة مشتريات</label><input id="expense-input-receipt" class="form-control" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"><small style="color:var(--text-muted);">صورة أو PDF، حتى 5 ميغابايت.</small></div>
                     <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-add-expense')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ المصروف</button></div>
                 </form>
             `,
@@ -1405,6 +1406,7 @@ function ensureFallbackModal(modalId) {
                     <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="edit-expense-input-method" class="form-control" onchange="togglePaymentTransferAccountField('edit-expense-input-method','edit-expense-transfer-account-group','edit-expense-input-recipient')"><option>نقدي</option><option>تحويل</option></select></div>
                     <div id="edit-expense-transfer-account-group" class="form-group" style="display:none;"><label class="form-label">اسم الشخص أو الحساب المُحوِّل</label><input id="edit-expense-input-recipient" class="form-control" type="text" placeholder="مثال: أحمد محمد أو حساب البنك الأهلي"></div>
                     <div class="form-group"><label class="form-label">ملاحظة</label><input id="edit-expense-input-note" class="form-control" type="text"></div>
+                    <div class="form-group"><label class="form-label">استبدال فاتورة المشتريات</label><input id="edit-expense-input-receipt" class="form-control" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"><small style="color:var(--text-muted);">اختياري — صورة أو PDF حتى 5 ميغابايت.</small></div>
                     <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-edit-expense')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ التعديل</button></div>
                 </form>
             `,
@@ -3000,6 +3002,7 @@ function renderExpenses() {
                 <td>${escapeHtml(expense.method || 'نقدي')}</td>
                 <td>${escapeHtml(expense.note || '—')}</td>
                 <td><div style="display:flex;gap:8px;">
+                    ${expense.receipt_path ? `<a class="btn btn-secondary btn-sm" href="/${encodeURI(String(expense.receipt_path).replace(/^\/+/, ''))}" target="_blank" rel="noopener" title="عرض الفاتورة"><i data-lucide="file-text" style="width:13px;height:13px;"></i><span>عرض الفاتورة</span></a>` : ''}
                     <button class="btn btn-secondary btn-sm" onclick="openEditExpenseModal(${Number(expense.id)})" title="تعديل"><i data-lucide="edit-2" style="width:13px;height:13px;"></i></button>
                     <button class="btn btn-danger btn-sm" onclick="deleteExpense(${Number(expense.id)})" title="حذف"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
                 </div></td>
@@ -3037,8 +3040,20 @@ function submitExpense(event) {
         showAppNotice('يرجى إدخال اسم الشخص أو الحساب المُحوِّل.', 'warning', 5200);
         return;
     }
+    const receiptFile = document.getElementById(`${prefix}-receipt`)?.files?.[0];
+    if (receiptFile && receiptFile.size > 5 * 1024 * 1024) {
+        showAppNotice('حجم الفاتورة يجب ألا يتجاوز 5 ميغابايت.', 'warning', 5200);
+        return;
+    }
+    if (receiptFile && !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(receiptFile.type)) {
+        showAppNotice('صيغة الفاتورة يجب أن تكون صورة أو PDF.', 'warning', 5200);
+        return;
+    }
     const action = id ? 'edit_expense' : 'add_expense';
-    postApi(action, payload).then(res => {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => formData.append(key, value));
+    if (receiptFile) formData.append('receipt', receiptFile);
+    fetch(resolveApiUrl(action), { method: 'POST', body: formData, credentials: 'same-origin' }).then(response => response.json()).then(res => {
         if (!res.success) {
             showAppNotice('خطأ أثناء حفظ المصروف: ' + (res.error || 'تعذر إتمام العملية.'), 'error', 5200);
             return;
