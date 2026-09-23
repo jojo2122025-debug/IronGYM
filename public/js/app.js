@@ -5,6 +5,7 @@ const state = {
     plans: [],
     subscriptions: [],
     payments: [],
+    expenses: [],
     membershipCards: [],
     products: [],
     sales: [],
@@ -502,6 +503,10 @@ function ensureMissingViewScaffold() {
                     <tbody id="payments-table-body"></tbody>
                 </table>
             </div>
+        `,
+        expenses: `
+            <div class="card" style="margin-bottom:16px;"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><strong>إجمالي المصروفات: <span id="total-expenses-value">0 ₪</span></strong><button class="btn btn-primary" onclick="openModal('modal-add-expense')"><i data-lucide="plus"></i> إضافة مصروف</button></div></div>
+            <div class="card table-responsive"><table class="custom-table"><thead><tr><th>التاريخ</th><th>البند</th><th>المستفيد</th><th>المبلغ</th><th>طريقة الدفع</th><th>ملاحظة</th><th>الإجراءات</th></tr></thead><tbody id="expenses-table-body"></tbody></table></div>
         `,
         products: `
             <div class="products-toolbar">
@@ -1084,6 +1089,7 @@ function switchView(viewName) {
         subscriptions: { tag: "الاشتراكات", title: "الاشتراكات", desc: "تفاصيل فترات اشتراك الأعضاء" },
         plans: { tag: "الخطط", title: "خطط الاشتراك", desc: "إدارة باقات وتكلفة الاشتراكات" },
         payments: { tag: "المدفوعات", title: "المدفوعات", desc: "سجل الإيرادات والتحصيل المالي" },
+        expenses: { tag: "المصروفات", title: "المصروفات", desc: "تسجيل ومتابعة مصروفات الصالة" },
         products: { tag: "المنتجات", title: "المنتجات", desc: "المنتجات والمكملات" },
         reports: { tag: "التقارير", title: "التقارير", desc: "مؤشرات الأداء التشغيلي والمالي" },
         notifications: { tag: "الإشعارات", title: "الإشعارات", desc: "إدارة القوالب وسجل الإرسال وتنبيهات الاشتراكات" },
@@ -1174,6 +1180,9 @@ function triggerViewRenderer(viewName) {
             break;
         case "payments":
             renderPayments();
+            break;
+        case "expenses":
+            renderExpenses();
             break;
         case "products":
             renderProducts();
@@ -1368,6 +1377,35 @@ function ensureFallbackModal(modalId) {
                     <div id="pay-transfer-account-group" class="form-group" style="display:none;"><label class="form-label">اسم الشخص أو الحساب المُحوِّل</label><input id="pay-input-transfer-from-account" class="form-control" type="text" placeholder="مثال: أحمد محمد أو حساب البنك الأهلي"></div>
                     <div class="form-group"><label class="form-label">ملاحظة</label><input id="pay-input-note" class="form-control" type="text"></div>
                     <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-add-payment')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ</button></div>
+                </form>
+            `,
+        },
+        "modal-add-expense": {
+            title: "إضافة مصروف",
+            body: `
+                <form id="form-add-expense" onsubmit="submitExpense(event)">
+                    <div class="form-group"><label class="form-label">التاريخ</label><input id="expense-input-date" class="form-control" type="datetime-local" required></div>
+                    <div class="form-group"><label class="form-label">بند المصروف</label><input id="expense-input-category" class="form-control" type="text" placeholder="مثال: إيجار، كهرباء، صيانة" required></div>
+                    <div class="form-group"><label class="form-label">المبلغ</label><input id="expense-input-amount" class="form-control" type="number" min="0.01" step="0.01" required></div>
+                    <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="expense-input-method" class="form-control"><option>نقدي</option><option>تحويل</option></select></div>
+                    <div class="form-group"><label class="form-label">المستفيد أو الجهة</label><input id="expense-input-recipient" class="form-control" type="text" placeholder="اختياري"></div>
+                    <div class="form-group"><label class="form-label">ملاحظة</label><input id="expense-input-note" class="form-control" type="text" placeholder="اختياري"></div>
+                    <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-add-expense')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ المصروف</button></div>
+                </form>
+            `,
+        },
+        "modal-edit-expense": {
+            title: "تعديل مصروف",
+            body: `
+                <form id="form-edit-expense" onsubmit="submitExpense(event)">
+                    <input id="expense-input-id" type="hidden">
+                    <div class="form-group"><label class="form-label">التاريخ</label><input id="expense-input-date" class="form-control" type="datetime-local" required></div>
+                    <div class="form-group"><label class="form-label">بند المصروف</label><input id="expense-input-category" class="form-control" type="text" required></div>
+                    <div class="form-group"><label class="form-label">المبلغ</label><input id="expense-input-amount" class="form-control" type="number" min="0.01" step="0.01" required></div>
+                    <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="expense-input-method" class="form-control"><option>نقدي</option><option>تحويل</option></select></div>
+                    <div class="form-group"><label class="form-label">المستفيد أو الجهة</label><input id="expense-input-recipient" class="form-control" type="text"></div>
+                    <div class="form-group"><label class="form-label">ملاحظة</label><input id="expense-input-note" class="form-control" type="text"></div>
+                    <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-edit-expense')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ التعديل</button></div>
                 </form>
             `,
         },
@@ -1609,6 +1647,8 @@ function ensureFallbackModals() {
         "modal-edit-plan",
         "modal-add-payment",
         "modal-edit-payment",
+        "modal-add-expense",
+        "modal-edit-expense",
         "modal-add-product",
         "modal-edit-product-stock",
         "modal-add-user",
@@ -1639,6 +1679,10 @@ function openModal(modalId) {
     }
     modal.classList.add("active");
     populateDropdowns();
+    if (modalId === 'modal-add-expense') {
+        const dateInput = document.getElementById('expense-input-date');
+        if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 16);
+    }
     if (modalId === "modal-send-notification") {
         syncSendNotificationMode();
     }
@@ -2943,6 +2987,83 @@ function renderPayments() {
     if (totalPaymentsValueEl) totalPaymentsValueEl.innerText = totalAllTimePayments.toFixed(2) + " ₪";
 }
 
+function renderExpenses() {
+    const expenses = Array.isArray(state.expenses) ? state.expenses : [];
+    const tableBody = document.getElementById('expenses-table-body');
+    if (tableBody) {
+        tableBody.innerHTML = expenses.length ? expenses.slice(0, 150).map(expense => `
+            <tr>
+                <td class="val-mono">${formatDateTime(expense.date)}</td>
+                <td><strong>${escapeHtml(expense.category || '—')}</strong></td>
+                <td>${escapeHtml(expense.recipient || '—')}</td>
+                <td class="val-negative">${formatMoney(expense.amount)}</td>
+                <td>${escapeHtml(expense.method || 'نقدي')}</td>
+                <td>${escapeHtml(expense.note || '—')}</td>
+                <td><div style="display:flex;gap:8px;">
+                    <button class="btn btn-secondary btn-sm" onclick="openEditExpenseModal(${Number(expense.id)})" title="تعديل"><i data-lucide="edit-2" style="width:13px;height:13px;"></i></button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteExpense(${Number(expense.id)})" title="حذف"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
+                </div></td>
+            </tr>`).join('') : '<tr><td colspan="7" class="text-center" style="color:var(--text-muted);">لا توجد مصروفات مسجلة حتى الآن</td></tr>';
+    }
+    const total = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
+    safeSetText('total-expenses-value', formatMoney(total));
+    lucide.createIcons();
+}
+
+function submitExpense(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const id = document.getElementById('expense-input-id')?.value || '';
+    const payload = {
+        id,
+        date: document.getElementById('expense-input-date').value,
+        category: document.getElementById('expense-input-category').value.trim(),
+        amount: Number(document.getElementById('expense-input-amount').value),
+        method: document.getElementById('expense-input-method').value,
+        recipient: document.getElementById('expense-input-recipient').value.trim(),
+        note: document.getElementById('expense-input-note').value.trim(),
+    };
+    if (!payload.date || !payload.category || !Number.isFinite(payload.amount) || payload.amount <= 0) {
+        showAppNotice('يرجى إدخال تاريخ وبند ومبلغ المصروف بشكل صحيح.', 'warning', 5200);
+        return;
+    }
+    const action = id ? 'edit_expense' : 'add_expense';
+    postApi(action, payload).then(res => {
+        if (!res.success) {
+            showAppNotice('خطأ أثناء حفظ المصروف: ' + (res.error || 'تعذر إتمام العملية.'), 'error', 5200);
+            return;
+        }
+        closeModal(id ? 'modal-edit-expense' : 'modal-add-expense');
+        showAppNotice(id ? 'تم تعديل المصروف بنجاح.' : 'تم حفظ المصروف بنجاح.', 'success');
+        loadStateAndRender('expenses');
+    }).catch(() => showAppNotice('تعذر الاتصال بالخادم أثناء حفظ المصروف.', 'error', 5200));
+}
+
+function openEditExpenseModal(expenseId) {
+    const expense = (state.expenses || []).find(item => Number(item.id) === Number(expenseId));
+    if (!expense) return;
+    openModal('modal-edit-expense');
+    document.getElementById('expense-input-id').value = expense.id;
+    document.getElementById('expense-input-date').value = String(expense.date || '').slice(0, 16);
+    document.getElementById('expense-input-category').value = expense.category || '';
+    document.getElementById('expense-input-amount').value = expense.amount || '';
+    document.getElementById('expense-input-method').value = expense.method || 'نقدي';
+    document.getElementById('expense-input-recipient').value = expense.recipient || '';
+    document.getElementById('expense-input-note').value = expense.note || '';
+}
+
+function deleteExpense(expenseId) {
+    if (!confirm('هل تريد حذف هذا المصروف؟')) return;
+    postApi('delete_expense', { id: expenseId }).then(res => {
+        if (!res.success) {
+            showAppNotice('خطأ أثناء حذف المصروف: ' + (res.error || ''), 'error', 5200);
+            return;
+        }
+        showAppNotice('تم حذف المصروف بنجاح.', 'success');
+        loadStateAndRender('expenses');
+    }).catch(() => showAppNotice('تعذر الاتصال بالخادم أثناء حذف المصروف.', 'error', 5200));
+}
+
 function togglePaymentTransferAccountField(selectId, groupId, inputId) {
     const methodSelect = document.getElementById(selectId);
     const group = document.getElementById(groupId);
@@ -4158,13 +4279,13 @@ function isViewAllowed(viewName) {
     const role = state.currentUser.role;
 
     if (role === 'مدير النظام' || role === 'مدير الصالة') {
-        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'plans', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'activity-log', 'global-search'].includes(viewName);
+        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'plans', 'payments', 'expenses', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'activity-log', 'global-search'].includes(viewName);
     }
 
     const permissions = {
         'موظف الاستقبال': ['check-in', 'members', 'member-detail', 'trainers', 'notifications', 'sync-center', 'sync-event-detail', 'global-search'],
-        'المحاسب': ['subscriptions', 'plans', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'member-detail', 'global-search'],
-        'المدقق المالي': ['subscriptions', 'payments', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'activity-log', 'member-detail', 'global-search'],
+        'المحاسب': ['subscriptions', 'plans', 'payments', 'expenses', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'member-detail', 'global-search'],
+        'المدقق المالي': ['subscriptions', 'payments', 'expenses', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'activity-log', 'member-detail', 'global-search'],
         'مدرب': ['trainer-portal'],
         'مشترك': ['member-portal']
     };
@@ -4201,7 +4322,7 @@ function applyRolePermissions(role) {
     });
 
     // Auditor/Read-only checks
-    const audButtons = document.querySelectorAll("#view-subscriptions .btn-primary, #view-payments .btn-primary, #view-plans .btn-primary, #view-products .btn-primary, #view-members .btn-primary, .btn-delete-card, .btn-edit-card");
+    const audButtons = document.querySelectorAll("#view-subscriptions .btn-primary, #view-payments .btn-primary, #view-expenses .btn-primary, #view-expenses .btn-danger, #view-expenses .btn-secondary, #view-plans .btn-primary, #view-products .btn-primary, #view-members .btn-primary, .btn-delete-card, .btn-edit-card");
     audButtons.forEach(btn => {
         if (role === 'المدقق المالي') {
             btn.style.display = "none";

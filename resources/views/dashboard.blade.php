@@ -100,6 +100,10 @@
                     <i data-lucide="credit-card"></i>
                     <span>المدفوعات</span>
                 </a>
+                <a class="nav-link" data-view="expenses">
+                    <i data-lucide="wallet-cards"></i>
+                    <span>المصروفات</span>
+                </a>
                 <a class="nav-link" data-view="products">
                     <i data-lucide="shopping-bag"></i>
                     <span>المنتجات</span>

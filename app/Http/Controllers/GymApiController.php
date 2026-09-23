@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Checkin;
+use App\Models\Expense;
 use App\Models\Measurement;
 use App\Models\Member;
 use App\Models\MembershipCard;
@@ -75,6 +76,9 @@ class GymApiController extends Controller
                 $action === 'toggle_subscription' => $this->toggleSubscription($request),
                 $action === 'add_payment' => $this->addPayment($request),
                 $action === 'edit_payment' => $this->editPayment($request),
+                $action === 'add_expense' => $this->addExpense($request),
+                $action === 'edit_expense' => $this->editExpense($request),
+                $action === 'delete_expense' => $this->deleteExpense($request),
                 $action === 'add_product' => $this->addProduct($request),
                 $action === 'edit_product' => $this->editProduct($request),
                 $action === 'check_in' => $this->checkIn($request),
@@ -243,6 +247,7 @@ class GymApiController extends Controller
         $plans = Plan::orderBy('id')->get();
         $subscriptions = Subscription::orderByDesc('id')->get();
         $payments = Payment::orderByDesc('date')->get();
+        $expenses = Expense::orderByDesc('date')->get();
         $measurements = Measurement::orderByDesc('id')->get();
         $membershipCards = MembershipCard::orderByDesc('id')->get();
         $products = Product::orderBy('id')->get();
@@ -323,6 +328,7 @@ class GymApiController extends Controller
                 'plans' => $plans,
                 'subscriptions' => $subscriptions,
                 'payments' => $payments,
+                'expenses' => $expenses,
                 'measurements' => $measurements,
                 'membershipCards' => $membershipCards,
                 'products' => $products,
@@ -1681,6 +1687,62 @@ class GymApiController extends Controller
         $details = "تعديل دفعة مالية رقم {$data['payId']}: العضو ({$payment->member_name})، التاريخ ({$payment->getOriginal('date')} -> {$data['date']})، المبلغ ({$oldAmount} -> {$newAmount} ₪)، الطريقة ({$payment->getOriginal('method')} -> {$data['method']})، الملاحظة (\"{$oldNote}\" -> \"{$newNote}\")";
         ActivityLog::log('تعديل دفعة', $details);
 
+        return response()->json(['success' => true]);
+    }
+
+    protected function addExpense(Request $request): JsonResponse
+    {
+        $this->requireAnyRole(['مدير النظام', 'المحاسب']);
+        $this->requireNotReadOnly();
+        $data = $request->all();
+        $validator = Validator::make($data, [
+            'date' => 'required|date', 'category' => 'required|string|max:120',
+            'amount' => 'required|numeric|min:0.01', 'method' => 'required|in:نقدي,تحويل',
+            'recipient' => 'nullable|string|max:180', 'note' => 'nullable|string|max:2000',
+        ]);
+        if ($validator->fails()) return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
+        $expense = Expense::create([
+            'date' => Carbon::parse($data['date']), 'category' => trim((string) $data['category']),
+            'amount' => $data['amount'], 'method' => $data['method'],
+            'recipient' => trim((string) ($data['recipient'] ?? '')) ?: null,
+            'note' => trim((string) ($data['note'] ?? '')) ?: null,
+        ]);
+        ActivityLog::log('إضافة مصروف', "تم تسجيل مصروف {$expense->category} بقيمة {$expense->amount} شيكل");
+        return response()->json(['success' => true, 'expense' => $expense]);
+    }
+
+    protected function editExpense(Request $request): JsonResponse
+    {
+        $this->requireAnyRole(['مدير النظام', 'المحاسب']);
+        $this->requireNotReadOnly();
+        $data = $request->all();
+        $data['id'] = $data['id'] ?? $data['expenseId'] ?? null;
+        $validator = Validator::make($data, [
+            'id' => 'required|integer|exists:expenses,id', 'date' => 'required|date',
+            'category' => 'required|string|max:120', 'amount' => 'required|numeric|min:0.01',
+            'method' => 'required|in:نقدي,تحويل', 'recipient' => 'nullable|string|max:180', 'note' => 'nullable|string|max:2000',
+        ]);
+        if ($validator->fails()) return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
+        $expense = Expense::findOrFail((int) $data['id']);
+        $expense->update([
+            'date' => Carbon::parse($data['date']), 'category' => trim((string) $data['category']),
+            'amount' => $data['amount'], 'method' => $data['method'],
+            'recipient' => trim((string) ($data['recipient'] ?? '')) ?: null,
+            'note' => trim((string) ($data['note'] ?? '')) ?: null,
+        ]);
+        ActivityLog::log('تعديل مصروف', "تم تعديل المصروف رقم {$expense->id}");
+        return response()->json(['success' => true, 'expense' => $expense]);
+    }
+
+    protected function deleteExpense(Request $request): JsonResponse
+    {
+        $this->requireAnyRole(['مدير النظام', 'المحاسب']);
+        $this->requireNotReadOnly();
+        $expense = Expense::find((int) $request->input('id'));
+        if (!$expense) return response()->json(['success' => false, 'error' => 'المصروف غير موجود'], 404);
+        $description = $expense->category;
+        $expense->delete();
+        ActivityLog::log('حذف مصروف', "تم حذف المصروف: {$description}");
         return response()->json(['success' => true]);
     }
 
