@@ -6,30 +6,23 @@ use Tests\TestCase;
 
 class SingleGymBrandingTest extends TestCase
 {
-    public function test_home_page_uses_single_gym_branding(): void
+    public function test_root_page_is_the_login_screen(): void
     {
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertSee('IronGYM');
-        $response->assertDontSee('SaaS');
+        $response->assertSee('form-login');
+        $response->assertSee('IRONGYM');
     }
 
-    public function test_portal_routes_redirect_to_dashboard(): void
+    public function test_retired_portal_routes_are_not_available(): void
     {
-        $response = $this->get('/portal');
-        $response->assertRedirect('/dashboard');
-
-        $loginResponse = $this->get('/portal/login');
-        $loginResponse->assertRedirect('/dashboard');
+        $this->get('/portal')->assertNotFound();
+        $this->get('/portal/login')->assertNotFound();
     }
 
-    public function test_dashboard_includes_daily_checkin_log_toggle(): void
+    public function test_old_dashboard_url_redirects_to_login_root(): void
     {
-        $response = $this->get('/dashboard');
-
-        $response->assertOk();
-        $response->assertSee('toggle-checkin-log-btn');
-        $response->assertSee('سجل الدخول والخروج');
+        $this->get('/dashboard')->assertRedirect('/');
     }
 }

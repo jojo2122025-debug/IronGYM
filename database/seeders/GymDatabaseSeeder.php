@@ -2,9 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Branch;
 use App\Models\Checkin;
-use App\Models\Gym;
 use App\Models\Member;
 use App\Models\Measurement;
 use App\Models\Payment;
@@ -14,7 +12,6 @@ use App\Models\Sale;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use RuntimeException;
@@ -71,189 +68,6 @@ class GymDatabaseSeeder extends Seeder
                 ['id' => $p['id']],
                 array_merge($p, ['created_at' => $now])
             );
-        }
-    }
-
-    private function seedGymsAndBranches(): void
-    {
-        $defaultSettings = ['currency' => 'ILS', 'locale' => 'ar'];
-
-        $gymSeeds = [
-            ['name' => 'الصالة الرئيسية', 'code' => 'main-gym', 'branch_name' => 'الفرع الرئيسي', 'branch_code' => 'main-branch'],
-            ['name' => 'صالة السلام', 'code' => 'salem-gym', 'branch_name' => 'الفرع الرئيسي', 'branch_code' => 'salem-branch'],
-            ['name' => 'صالة الرياضة', 'code' => 'riyadah-gym', 'branch_name' => 'الفرع الرئيسي', 'branch_code' => 'riyadah-branch'],
-            ['name' => 'صالة النخبة', 'code' => 'elite-gym', 'branch_name' => 'الفرع الرئيسي', 'branch_code' => 'elite-branch'],
-        ];
-
-        foreach ($gymSeeds as $seed) {
-            $gym = Gym::firstOrCreate(
-                ['code' => $seed['code']],
-                ['name' => $seed['name'], 'status' => 'active', 'settings' => $defaultSettings]
-            );
-
-            Branch::firstOrCreate(
-                ['gym_id' => $gym->id, 'code' => $seed['branch_code']],
-                ['name' => $seed['branch_name'], 'status' => 'active', 'is_default' => true]
-            );
-        }
-    }
-
-    private function seedGymMembersAndSubscriptions(): void
-    {
-        $targets = [
-            'main-gym' => 1000,
-            'salem-gym' => 1000,
-            'riyadah-gym' => 1000,
-            'elite-gym' => 1000,
-        ];
-
-        $now = now();
-
-        $nextMemberIndex = Member::query()
-            ->selectRaw('MAX(CAST(SUBSTRING(id, 2) AS UNSIGNED)) as max_num')
-            ->value('max_num') ?: 0;
-        $nextMemberIndex++;
-
-        $nextSubscriptionIndex = Subscription::query()
-            ->selectRaw('MAX(CAST(SUBSTRING(id, 2) AS UNSIGNED)) as max_num')
-            ->value('max_num') ?: 0;
-        $nextSubscriptionIndex++;
-
-        $phoneCounter = 1000;
-
-        foreach ($targets as $gymCode => $targetCount) {
-            $gym = Gym::where('code', $gymCode)->first();
-            if (!$gym) {
-                continue;
-            }
-
-            $branch = $gym->branches()->where('is_default', true)->first();
-            if (!$branch) {
-                $branch = $gym->branches()->first();
-            }
-            if (!$branch) {
-                continue;
-            }
-
-            $existingCount = Member::where('gym_id', $gym->id)->count();
-            $neededMembers = max(0, $targetCount - $existingCount);
-            $memberRows = [];
-
-            for ($index = 0; $index < $neededMembers; $index++) {
-                $memberRows[] = [
-                    'id' => 'M' . str_pad((string) $nextMemberIndex, 5, '0', STR_PAD_LEFT),
-                    'name' => "عضو تجريبي {$gym->name} " . ($existingCount + $index + 1),
-                    'phone' => '050' . str_pad((string) $phoneCounter, 7, '0', STR_PAD_LEFT),
-                    'whatsapp' => '050' . str_pad((string) $phoneCounter, 7, '0', STR_PAD_LEFT),
-                    'gender' => $index % 2 === 0 ? 'ذكر' : 'أنثى',
-                    'gym_id' => $gym->id,
-                    'branch_id' => $branch->id,
-                    'created_at' => $now,
-                ];
-
-                $nextMemberIndex++;
-                $phoneCounter++;
-            }
-
-            if (!empty($memberRows)) {
-                DB::table('members')->insert($memberRows);
-            }
-
-            $this->seedGymSubscriptions($gym, $branch, 4, $nextSubscriptionIndex, $now);
-        }
-    }
-
-    private function seedGymSubscriptions(Gym $gym, Branch $branch, int $targetSubscriptions, int &$nextSubscriptionIndex, $now): void
-    {
-        $existingSubscriptions = Subscription::where('gym_id', $gym->id)->count();
-        $neededSubscriptions = max(0, $targetSubscriptions - $existingSubscriptions);
-        if ($neededSubscriptions === 0) {
-            return;
-        }
-
-        $memberIds = Member::where('gym_id', $gym->id)
-            ->orderBy('id')
-            ->pluck('id')
-            ->take($neededSubscriptions);
-
-        if ($memberIds->count() < $neededSubscriptions) {
-            return;
-        }
-
-        $plans = [
-            ['plan_name' => 'اشتراك شهر', 'amount' => 200.00, 'duration' => 30, 'status' => 'فعال'],
-            ['plan_name' => 'اشتراك شهرين', 'amount' => 380.00, 'duration' => 60, 'status' => 'فعال'],
-            ['plan_name' => 'اشتراك ٣ أشهر', 'amount' => 540.00, 'duration' => 90, 'status' => 'مجمد'],
-            ['plan_name' => 'VIP سنوي', 'amount' => 1800.00, 'duration' => 365, 'status' => 'فعال'],
-        ];
-
-        $subscriptionRows = [];
-        foreach ($memberIds as $index => $memberId) {
-            $plan = $plans[$index % count($plans)];
-            $startDate = $now->copy()->subDays(5 + $index)->toDateString();
-            $endDate = $now->copy()->addDays($plan['duration'])->toDateString();
-
-            $subscriptionRows[] = [
-                'id' => 'S' . str_pad((string) $nextSubscriptionIndex, 3, '0', STR_PAD_LEFT),
-                'member_id' => $memberId,
-                'plan_name' => $plan['plan_name'],
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'amount' => $plan['amount'],
-                'paid' => $plan['amount'],
-                'remaining' => 0.00,
-                'status' => $plan['status'],
-                'gym_id' => $gym->id,
-                'branch_id' => $branch->id,
-                'created_at' => $now,
-            ];
-
-            $nextSubscriptionIndex++;
-        }
-
-        if (!empty($subscriptionRows)) {
-            DB::table('subscriptions')->insert($subscriptionRows);
-        }
-    }
-
-    private function assignDefaultGymBranchToLegacyRecords(): void
-    {
-        $mainGym = Gym::where('code', 'main-gym')->first();
-        if (!$mainGym) {
-            return;
-        }
-
-        $defaultBranch = Branch::where('gym_id', $mainGym->id)
-            ->where('code', 'main-branch')
-            ->first();
-
-        if (!$defaultBranch) {
-            return;
-        }
-
-        $tables = [
-            'members',
-            'plans',
-            'subscriptions',
-            'payments',
-            'products',
-            'sales',
-            'checkins',
-            'measurements',
-            'users',
-        ];
-
-        foreach ($tables as $table) {
-            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'gym_id') || !Schema::hasColumn($table, 'branch_id')) {
-                continue;
-            }
-
-            DB::table($table)
-                ->whereNull('gym_id')
-                ->update([
-                    'gym_id' => $mainGym->id,
-                    'branch_id' => $defaultBranch->id,
-                ]);
         }
     }
 
