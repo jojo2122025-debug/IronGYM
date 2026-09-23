@@ -505,7 +505,7 @@ function ensureMissingViewScaffold() {
             </div>
         `,
         expenses: `
-            <div class="card" style="margin-bottom:16px;"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><strong>إجمالي المصروفات: <span id="total-expenses-value">0 ₪</span></strong><button class="btn btn-primary" onclick="openModal('modal-add-expense')"><i data-lucide="plus"></i> إضافة مصروف</button></div></div>
+            <div class="card" style="margin-bottom:16px;"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><strong>إجمالي مصروفات <span id="expenses-month-label">هذا الشهر</span>: <span id="total-expenses-value">0 ₪</span></strong><button class="btn btn-primary" onclick="openModal('modal-add-expense')"><i data-lucide="plus"></i> إضافة مصروف</button></div></div>
             <div class="card table-responsive"><table class="custom-table"><thead><tr><th>التاريخ</th><th>البند</th><th>المستفيد</th><th>المبلغ</th><th>طريقة الدفع</th><th>ملاحظة</th><th>الإجراءات</th></tr></thead><tbody id="expenses-table-body"></tbody></table></div>
         `,
         products: `
@@ -3005,8 +3005,13 @@ function renderExpenses() {
                 </div></td>
             </tr>`).join('') : '<tr><td colspan="7" class="text-center" style="color:var(--text-muted);">لا توجد مصروفات مسجلة حتى الآن</td></tr>';
     }
-    const total = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const total = expenses
+        .filter(expense => String(expense.date || '').slice(0, 7) === currentMonth)
+        .reduce((sum, expense) => sum + toNumber(expense.amount), 0);
     safeSetText('total-expenses-value', formatMoney(total));
+    const monthLabel = new Intl.DateTimeFormat('ar', { month: 'long', year: 'numeric' }).format(new Date());
+    safeSetText('expenses-month-label', monthLabel);
     lucide.createIcons();
 }
 
