@@ -296,6 +296,36 @@ function showAppNotice(message, type = 'info', timeout = 4200) {
     }, Math.max(1600, timeout));
 }
 
+function paymentInvoiceUrl(paymentId) {
+    return `/payments/${encodeURIComponent(String(paymentId))}/invoice`;
+}
+
+function openPaymentInvoice(paymentId) {
+    window.open(paymentInvoiceUrl(paymentId), '_blank', 'noopener');
+}
+
+function showInvoiceReady(paymentId) {
+    if (!paymentId) return;
+    document.querySelectorAll('.invoice-ready-notice').forEach(existing => existing.remove());
+    const notice = document.createElement('div');
+    notice.className = 'invoice-ready-notice';
+    notice.setAttribute('role', 'status');
+    const label = document.createElement('span');
+    label.textContent = 'فاتورة الدفعة جاهزة للطباعة على A5.';
+    const link = document.createElement('a');
+    link.href = paymentInvoiceUrl(paymentId);
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'عرض وطباعة الفاتورة';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'إغلاق إشعار الفاتورة');
+    close.textContent = '×';
+    close.addEventListener('click', () => notice.remove());
+    notice.append(label, link, close);
+    ensureAppNoticeHost().append(notice);
+}
+
 function refreshNetworkStatusBadge() {
     const badge = document.getElementById("network-status-badge");
     if (!badge) return;
@@ -2796,6 +2826,7 @@ function submitAddSubscription(e) {
             e.target.reset();
             closeModal("modal-add-subscription");
             showAppNotice("تم تفعيل باقة الاشتراك وحفظ السجل المالي بقاعدة البيانات!", 'success');
+            showInvoiceReady(res.paymentId);
             loadStateAndRender("subscriptions");
         } else {
             showAppNotice("خطأ: " + res.error, 'error', 5200);
@@ -2944,6 +2975,7 @@ function renderPayments() {
                     <i data-lucide="edit-2" style="width: 13px; height: 13px;"></i>
                 </button>
             ` : '';
+            const invoiceBtn = `<button type="button" class="btn btn-secondary btn-sm" onclick="openPaymentInvoice('${p.id}')" aria-label="عرض وطباعة فاتورة الدفعة ${p.id}" title="فاتورة A5"><i data-lucide="printer" aria-hidden="true" style="width:13px;height:13px;"></i><span>الفاتورة</span></button>`;
             return `
                 <tr>
                     <td class="val-mono">${p.date}</td>
@@ -2954,6 +2986,7 @@ function renderPayments() {
                     <td>
                         <div style="display: flex; gap: 8px;">
                             ${editBtn}
+                            ${invoiceBtn}
                         </div>
                     </td>
                 </tr>
@@ -3138,6 +3171,7 @@ function submitAddPayment(e) {
             e.target.reset();
             closeModal("modal-add-payment");
             showAppNotice("تم حفظ السند المالي وتحديث مستحقات المشترك!", 'success');
+            showInvoiceReady(res.id);
             loadStateAndRender("payments");
         } else {
             showAppNotice("خطأ: " + res.error, 'error', 5200);
@@ -3345,6 +3379,7 @@ function checkoutBasket() {
         if (res.success) {
             state.basket = [];
             showAppNotice("تم إتمام عملية البيع وخصم الكميات من المخزن وحفظ الفاتورة بقاعدة البيانات!", 'success');
+            showInvoiceReady(res.paymentId);
             loadStateAndRender("products");
         } else {
             showAppNotice("خطأ أثناء البيع: " + res.error, 'error', 5200);
@@ -5429,6 +5464,7 @@ function renderMemberDetail(memberId) {
                         <i data-lucide="edit-2" style="width: 13px; height: 13px;"></i>
                     </button>
                 ` : '';
+                const invoiceBtn = `<button type="button" class="btn btn-secondary btn-sm" onclick="openPaymentInvoice('${p.id}')" aria-label="عرض وطباعة فاتورة الدفعة ${p.id}" title="فاتورة A5"><i data-lucide="printer" aria-hidden="true" style="width:13px;height:13px;"></i><span>الفاتورة</span></button>`;
                 return `
                     <tr>
                         <td class="val-mono">${p.date}</td>
@@ -5438,6 +5474,7 @@ function renderMemberDetail(memberId) {
                         <td>
                             <div style="display: flex; gap: 8px;">
                                 ${editBtn}
+                                ${invoiceBtn}
                             </div>
                         </td>
                     </tr>

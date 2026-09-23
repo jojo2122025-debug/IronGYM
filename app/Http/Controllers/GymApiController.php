@@ -900,7 +900,8 @@ class GymApiController extends Controller
         $remaining = $amount - $paid;
         $nextSubId = Subscription::generateNextId();
 
-        DB::transaction(function () use ($data, $plan, $member, $start, $end, $amount, $paid, $remaining, $nextSubId) {
+        $paymentId = null;
+        DB::transaction(function () use ($data, $plan, $member, $start, $end, $amount, $paid, $remaining, $nextSubId, &$paymentId) {
             Subscription::create([
                 'id' => $nextSubId,
                 'member_id' => $data['memberId'],
@@ -916,8 +917,9 @@ class GymApiController extends Controller
             ]);
 
             if ($paid > 0) {
+                $paymentId = Payment::generateNextId();
                 Payment::create([
-                    'id' => Payment::generateNextId(),
+                    'id' => $paymentId,
                     'member_id' => $member->id,
                     'subscription_id' => $nextSubId,
                     'member_name' => $member->name,
@@ -931,7 +933,7 @@ class GymApiController extends Controller
 
         ActivityLog::log('تفعيل اشتراك', "تم تفعيل اشتراك جديد رقم {$nextSubId} للمشترك: {$member->name} ({$data['memberId']}) في باقة: {$plan->name} بقيمة: {$amount} شيكل (تم دفع {$paid})");
 
-        return response()->json(['success' => true, 'id' => $nextSubId]);
+        return response()->json(['success' => true, 'id' => $nextSubId, 'paymentId' => $paymentId]);
     }
 
     protected function editSubscription(Request $request): JsonResponse
@@ -1355,7 +1357,8 @@ class GymApiController extends Controller
         $totalCost = 0.0;
         $itemsSummary = [];
 
-        DB::transaction(function () use ($basket, $paymentMethod, $memberId, $transferFromAccount, &$totalCost, &$itemsSummary) {
+        $paymentId = null;
+        DB::transaction(function () use ($basket, $paymentMethod, $memberId, $transferFromAccount, &$totalCost, &$itemsSummary, &$paymentId) {
             $saleItems = [];
 
             foreach ($basket as $item) {
@@ -1413,8 +1416,9 @@ class GymApiController extends Controller
                 }
             }
 
+            $paymentId = Payment::generateNextId();
             Payment::create([
-                'id' => Payment::generateNextId(),
+                'id' => $paymentId,
                 'member_id' => !empty($memberId) ? $memberId : null,
                 'sale_id' => $sale->id,
                 'member_name' => $buyerName,
@@ -1428,7 +1432,7 @@ class GymApiController extends Controller
 
         ActivityLog::log('شراء منتجات', "تم بيع منتجات بقيمة {$totalCost} شيكل");
 
-        return response()->json(['success' => true, 'total' => $totalCost]);
+        return response()->json(['success' => true, 'total' => $totalCost, 'paymentId' => $paymentId]);
     }
 
     // -----------------------------------------------------------------
