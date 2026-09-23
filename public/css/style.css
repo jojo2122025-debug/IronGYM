@@ -371,6 +371,14 @@ form#form-login .form-group { margin-bottom: 12px; }
     flex-direction: column;
 }
 
+.app-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 14px; font-size: 13px; color: var(--text-secondary); }
+.app-breadcrumb a { color: var(--text-secondary); text-decoration: none; border-radius: 6px; }
+.app-breadcrumb a:hover, .app-breadcrumb a:focus-visible { color: var(--accent-yellow); text-decoration: underline; }
+.app-breadcrumb [aria-current="page"] { color: var(--text-primary); font-weight: 700; }
+.components-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 24px; }
+.components-grid a { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 18px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; color: var(--text-primary); text-decoration: none; background: rgba(255,255,255,.04); }
+.components-grid a:hover, .components-grid a:focus-visible { border-color: var(--accent-yellow); background: rgba(255,255,255,.08); }
+
 .header-tag {
     font-size: 11px;
     font-weight: 800;

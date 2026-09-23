@@ -172,12 +172,26 @@
         <main class="main-content">
             <div class="page-header">
                 <div class="header-info">
+                    <nav class="app-breadcrumb" aria-label="مسار التنقل الأساسي">
+                        <a href="/" id="breadcrumb-home">الرئيسية</a>
+                        <span aria-hidden="true">/</span>
+                        <a href="/?view=components" id="breadcrumb-components">المكونات</a>
+                        <span id="breadcrumb-current-separator" aria-hidden="true">/</span>
+                        <span id="breadcrumb-current" aria-current="page">لوحة التحكم</span>
+                    </nav>
                     <span class="header-tag" id="header-tag">إدارة IRONGYM</span>
                     <h1 class="header-title" id="header-title">لوحة التحكم</h1>
                     <p class="header-desc" id="header-desc">نظرة شاملة على نشاط الصالة اليومية</p>
                 </div>
                 <div class="header-actions">
                     <div class="datetime-stamp" id="datetime-stamp">الثلاثاء، 2 يونيو 2026</div>
+                </div>
+            </div>
+            <div id="view-components" class="view-panel">
+                <div class="card">
+                    <h2>مكونات النظام</h2>
+                    <p class="header-desc">انتقل مباشرةً إلى القسم الذي تحتاجه.</p>
+                    <div id="components-grid" class="components-grid"></div>
                 </div>
             </div>
             <div id="view-dashboard" class="view-panel active">

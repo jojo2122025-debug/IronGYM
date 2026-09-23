@@ -654,6 +654,7 @@ class GymApiController extends Controller
             'phone' => ['required','string','regex:/^[0-9]{10}$/'],
             'gender' => 'nullable|in:ذكر,أنثى',
             'whatsapp' => ['nullable','string','regex:/^[0-9]{14}$/'],
+            'image' => 'prohibited',
         ], [
             'phone.regex' => 'رقم الجوال يجب أن يكون 10 أرقام مثال 0599466586.',
             'whatsapp.regex' => 'رقم الواتساب يجب أن يكون 14 رقمًا مثال 00972599466856.',
@@ -662,22 +663,10 @@ class GymApiController extends Controller
             return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
         }
 
-        $imagePath = null;
-        if ($request->hasFile('image') && $request->file('image')->isValid()) {
-            $file = $request->file('image');
-            $fileName = uniqid('member_', true) . '.' . $file->getClientOriginalExtension();
-            $targetDir = public_path('uploads');
-            if (!is_dir($targetDir)) {
-                mkdir($targetDir, 0777, true);
-            }
-            $file->move($targetDir, $fileName);
-            $imagePath = 'uploads/' . $fileName;
-        }
-
         $nextId = Member::generateNextId();
         $cardCode = 'GYM-' . $nextId;
 
-        DB::transaction(function () use ($data, $imagePath, $nextId, $cardCode) {
+        DB::transaction(function () use ($data, $nextId, $cardCode) {
             Member::create([
                 'id' => $nextId,
                 'membership_number' => $nextId,
@@ -685,7 +674,7 @@ class GymApiController extends Controller
                 'phone' => $data['phone'],
                 'gender' => $data['gender'] ?? 'ذكر',
                 'whatsapp' => $data['whatsapp'] ?? null,
-                'image_path' => $imagePath,
+                'image_path' => null,
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -722,6 +711,7 @@ class GymApiController extends Controller
             'phone' => ['required','string','regex:/^[0-9]{10}$/'],
             'gender' => 'nullable|in:ذكر,أنثى',
             'whatsapp' => ['nullable','string','regex:/^[0-9]{14}$/'],
+            'image' => 'prohibited',
         ], [
             'id.required' => 'معرّف المشترك مطلوب.',
             'phone.regex' => 'رقم الجوال يجب أن يكون 10 أرقام مثال 0599466586.',
@@ -736,24 +726,11 @@ class GymApiController extends Controller
             return response()->json(['success' => false, 'error' => 'المشترك غير موجود'], 404);
         }
 
-        $imagePath = $member->image_path;
-        if ($request->hasFile('image') && $request->file('image')->isValid()) {
-            $file = $request->file('image');
-            $fileName = uniqid('member_', true) . '.' . $file->getClientOriginalExtension();
-            $targetDir = public_path('uploads');
-            if (!is_dir($targetDir)) {
-                mkdir($targetDir, 0777, true);
-            }
-            $file->move($targetDir, $fileName);
-            $imagePath = 'uploads/' . $fileName;
-        }
-
         $member->update([
             'name' => $data['name'],
             'phone' => $data['phone'],
             'gender' => $data['gender'] ?? 'ذكر',
             'whatsapp' => $data['whatsapp'] ?? null,
-            'image_path' => $imagePath,
         ]);
 
         ActivityLog::log('تعديل مشترك', "تم تعديل بيانات المشترك: {$data['id']} ليصبح الاسم: {$data['name']} والجوال: {$data['phone']} والواتساب: " . ($data['whatsapp'] ?? '—') . " والجنس: " . ($data['gender'] ?? 'ذكر'));

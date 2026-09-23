@@ -80,6 +80,22 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     });
+    document.getElementById('breadcrumb-home')?.addEventListener('click', (event) => {
+        if (!state.currentUser) return;
+        event.preventDefault();
+        switchView(getDefaultViewForRole(state.currentUser.role));
+    });
+    document.getElementById('breadcrumb-components')?.addEventListener('click', (event) => {
+        if (!state.currentUser) return;
+        event.preventDefault();
+        switchView('components');
+    });
+    document.getElementById('components-grid')?.addEventListener('click', (event) => {
+        const link = event.target.closest('a[data-view]');
+        if (!link || !isViewAllowed(link.dataset.view)) return;
+        event.preventDefault();
+        switchView(link.dataset.view);
+    });
 
     // Populate current date/time in header
     updateDateTime();
@@ -1074,6 +1090,7 @@ function switchView(viewName) {
     const headerDesc = document.getElementById("header-desc");
 
     const headerConfigs = {
+        components: { tag: "المكونات", title: "مكونات النظام", desc: "جميع أقسام الصالة المتاحة لحسابك" },
         dashboard: { tag: "لوحة التحكم", title: "لوحة التحكم", desc: "نظرة شاملة على نشاط الصالة اليوم" },
         "check-in": { tag: "تسجيل الحضور", title: "تسجيل الحضور", desc: "تسجيل حضور المشتركين اليومي" },
         members: { tag: "المشتركون", title: "المشتركون", desc: "إدارة جميع مشتركي الصالة" },
@@ -1101,6 +1118,12 @@ function switchView(viewName) {
         headerTitle.innerText = headerConfigs[viewName].title;
         headerDesc.innerText = headerConfigs[viewName].desc;
     }
+    const breadcrumbCurrent = document.getElementById('breadcrumb-current');
+    const breadcrumbSeparator = document.getElementById('breadcrumb-current-separator');
+    if (breadcrumbCurrent) breadcrumbCurrent.textContent = headerConfigs[viewName]?.title || 'القسم الحالي';
+    if (breadcrumbSeparator) breadcrumbSeparator.hidden = viewName === 'components';
+    if (breadcrumbCurrent) breadcrumbCurrent.hidden = viewName === 'components';
+    if (viewName === 'components') renderComponentsIndex();
 
     // Portal views can render from locally cached role data.
     if (viewName === 'member-portal' || viewName === 'trainer-portal') {
@@ -1111,10 +1134,29 @@ function switchView(viewName) {
             // Fetch state which contains role portal data.
             loadStateAndRender(viewName);
         }
-    } else {
+    } else if (viewName !== 'components') {
         // Load state from DB and then render the panel
         loadStateAndRender(viewName);
     }
+}
+
+function renderComponentsIndex() {
+    const grid = document.getElementById('components-grid');
+    if (!grid) return;
+    grid.replaceChildren();
+    document.querySelectorAll('.sidebar-nav .nav-link[data-view]').forEach(nav => {
+        const view = nav.dataset.view;
+        if (!isViewAllowed(view)) return;
+        const link = document.createElement('a');
+        link.href = `/?view=${encodeURIComponent(view)}`;
+        link.dataset.view = view;
+        const icon = nav.querySelector('svg, i');
+        if (icon) link.append(icon.cloneNode(true));
+        const label = document.createElement('span');
+        label.textContent = nav.querySelector('span')?.textContent || view;
+        link.append(label);
+        grid.append(link);
+    });
 }
 
 function updateViewQueryParams(viewName) {
@@ -1124,7 +1166,7 @@ function updateViewQueryParams(viewName) {
     url.searchParams.delete('view');
     url.searchParams.delete('syncEventId');
 
-    if (viewName === 'sync-center' || viewName === 'sync-event-detail') {
+    if (viewName === 'components' || viewName === 'sync-center' || viewName === 'sync-event-detail') {
         url.searchParams.set('view', viewName);
     }
 
@@ -1299,7 +1341,6 @@ function ensureFallbackModal(modalId) {
                     <div class="form-group"><label class="form-label">الجوال</label><input id="edit-member-input-phone" class="form-control" type="text" required inputmode="numeric" pattern="\\d{10}" maxlength="10" title="رقم الجوال يجب أن يكون 10 أرقام" ></div>
                     <div class="form-group"><label class="form-label">الجنس</label><select id="edit-member-input-gender" class="form-control"><option>ذكر</option><option>أنثى</option></select></div>
                     <div class="form-group"><label class="form-label">واتساب</label><input id="edit-member-input-whatsapp" class="form-control" type="text" inputmode="numeric" pattern="\\d{14}" maxlength="14" title="رقم الواتساب يجب أن يكون 14 رقمًا مثل 00972599466856"></div>
-                    <div class="form-group"><label class="form-label">الصورة</label><input id="edit-member-input-image" class="form-control" type="file" accept="image/*" onchange="previewEditImage(event)"></div>
                     <div id="edit-member-image-preview-container" style="width:60px; height:60px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; margin-bottom:8px;"></div>
                     <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-edit-member')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ</button></div>
                 </form>
@@ -1313,7 +1354,6 @@ function ensureFallbackModal(modalId) {
                     <div class="form-group"><label class="form-label">الجوال</label><input id="member-input-phone" class="form-control" type="text" required inputmode="numeric" pattern="\\d{10}" maxlength="10" title="رقم الجوال يجب أن يكون 10 أرقام" ></div>
                     <div class="form-group"><label class="form-label">الجنس</label><select id="member-input-gender" class="form-control"><option>ذكر</option><option>أنثى</option></select></div>
                     <div class="form-group"><label class="form-label">واتساب</label><input id="member-input-whatsapp" class="form-control" type="text" inputmode="numeric" pattern="\\d{14}" maxlength="14" title="رقم الواتساب يجب أن يكون 14 رقمًا مثل 00972599466856"></div>
-                    <div class="form-group"><label class="form-label">الصورة</label><input id="member-input-image" class="form-control" type="file" accept="image/*"></div>
                     <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-add-member')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ</button></div>
                 </form>
             `,
@@ -2489,7 +2529,6 @@ function openEditMemberModal(memberId) {
     document.getElementById("edit-member-input-phone").value = member.phone;
     document.getElementById("edit-member-input-gender").value = member.gender || 'ذكر';
     document.getElementById("edit-member-input-whatsapp").value = member.whatsapp || '';
-    document.getElementById("edit-member-input-image").value = ""; // clear file
 
     // Populate current image preview if exists
     const previewContainer = document.getElementById("edit-member-image-preview-container");
@@ -2500,18 +2539,6 @@ function openEditMemberModal(memberId) {
             previewContainer.innerHTML = `<i data-lucide="user" style="width: 20px; height: 20px; color: var(--text-muted);"></i>`;
             lucide.createIcons();
         }
-    }
-}
-
-function previewEditImage(event) {
-    const input = event.target;
-    const previewContainer = document.getElementById("edit-member-image-preview-container");
-    if (previewContainer && input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            previewContainer.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
-        }
-        reader.readAsDataURL(input.files[0]);
     }
 }
 
@@ -2536,7 +2563,6 @@ function submitEditMember(e) {
     const phone = document.getElementById("edit-member-input-phone").value;
     const gender = document.getElementById("edit-member-input-gender").value;
     const whatsapp = document.getElementById("edit-member-input-whatsapp").value;
-    const imageFile = document.getElementById("edit-member-input-image").files[0];
 
     const validationError = validateMemberContactFields(phone, whatsapp);
     if (validationError) {
@@ -2550,9 +2576,6 @@ function submitEditMember(e) {
     formData.append("phone", phone);
     formData.append("gender", gender);
     formData.append("whatsapp", whatsapp);
-    if (imageFile) {
-        formData.append("image", imageFile);
-    }
 
     fetch(resolveApiUrl('edit_member'), {
         method: 'POST',
@@ -2620,7 +2643,6 @@ function submitAddMember(e) {
     const phone = document.getElementById("member-input-phone").value;
     const gender = document.getElementById("member-input-gender").value;
     const whatsapp = document.getElementById("member-input-whatsapp").value;
-    const imageFile = document.getElementById("member-input-image").files[0];
 
     const validationError = validateMemberContactFields(phone, whatsapp);
     if (validationError) {
@@ -2633,9 +2655,6 @@ function submitAddMember(e) {
     formData.append("phone", phone);
     formData.append("gender", gender);
     formData.append("whatsapp", whatsapp);
-    if (imageFile) {
-        formData.append("image", imageFile);
-    }
 
     fetch(resolveApiUrl('add_member'), {
         method: 'POST',
@@ -4273,6 +4292,7 @@ function getDefaultViewForRole(role) {
 
 function isViewAllowed(viewName) {
     if (!state.currentUser) return false;
+    if (viewName === 'components') return true;
     const role = state.currentUser.role;
 
     if (role === 'مدير النظام' || role === 'مدير الصالة') {
