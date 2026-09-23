@@ -1387,8 +1387,8 @@ function ensureFallbackModal(modalId) {
                     <div class="form-group"><label class="form-label">التاريخ</label><input id="expense-input-date" class="form-control" type="datetime-local" required></div>
                     <div class="form-group"><label class="form-label">بند المصروف</label><input id="expense-input-category" class="form-control" type="text" placeholder="مثال: إيجار، كهرباء، صيانة" required></div>
                     <div class="form-group"><label class="form-label">المبلغ</label><input id="expense-input-amount" class="form-control" type="number" min="0.01" step="0.01" required></div>
-                    <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="expense-input-method" class="form-control"><option>نقدي</option><option>تحويل</option></select></div>
-                    <div class="form-group"><label class="form-label">المستفيد أو الجهة</label><input id="expense-input-recipient" class="form-control" type="text" placeholder="اختياري"></div>
+                    <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="expense-input-method" class="form-control" onchange="togglePaymentTransferAccountField('expense-input-method','expense-transfer-account-group','expense-input-recipient')"><option>نقدي</option><option>تحويل</option></select></div>
+                    <div id="expense-transfer-account-group" class="form-group" style="display:none;"><label class="form-label">اسم الشخص أو الحساب المُحوِّل</label><input id="expense-input-recipient" class="form-control" type="text" placeholder="مثال: أحمد محمد أو حساب البنك الأهلي"></div>
                     <div class="form-group"><label class="form-label">ملاحظة</label><input id="expense-input-note" class="form-control" type="text" placeholder="اختياري"></div>
                     <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-add-expense')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ المصروف</button></div>
                 </form>
@@ -1398,13 +1398,13 @@ function ensureFallbackModal(modalId) {
             title: "تعديل مصروف",
             body: `
                 <form id="form-edit-expense" onsubmit="submitExpense(event)">
-                    <input id="expense-input-id" type="hidden">
-                    <div class="form-group"><label class="form-label">التاريخ</label><input id="expense-input-date" class="form-control" type="datetime-local" required></div>
-                    <div class="form-group"><label class="form-label">بند المصروف</label><input id="expense-input-category" class="form-control" type="text" required></div>
-                    <div class="form-group"><label class="form-label">المبلغ</label><input id="expense-input-amount" class="form-control" type="number" min="0.01" step="0.01" required></div>
-                    <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="expense-input-method" class="form-control"><option>نقدي</option><option>تحويل</option></select></div>
-                    <div class="form-group"><label class="form-label">المستفيد أو الجهة</label><input id="expense-input-recipient" class="form-control" type="text"></div>
-                    <div class="form-group"><label class="form-label">ملاحظة</label><input id="expense-input-note" class="form-control" type="text"></div>
+                    <input id="edit-expense-input-id" type="hidden">
+                    <div class="form-group"><label class="form-label">التاريخ</label><input id="edit-expense-input-date" class="form-control" type="datetime-local" required></div>
+                    <div class="form-group"><label class="form-label">بند المصروف</label><input id="edit-expense-input-category" class="form-control" type="text" required></div>
+                    <div class="form-group"><label class="form-label">المبلغ</label><input id="edit-expense-input-amount" class="form-control" type="number" min="0.01" step="0.01" required></div>
+                    <div class="form-group"><label class="form-label">طريقة الدفع</label><select id="edit-expense-input-method" class="form-control" onchange="togglePaymentTransferAccountField('edit-expense-input-method','edit-expense-transfer-account-group','edit-expense-input-recipient')"><option>نقدي</option><option>تحويل</option></select></div>
+                    <div id="edit-expense-transfer-account-group" class="form-group" style="display:none;"><label class="form-label">اسم الشخص أو الحساب المُحوِّل</label><input id="edit-expense-input-recipient" class="form-control" type="text" placeholder="مثال: أحمد محمد أو حساب البنك الأهلي"></div>
+                    <div class="form-group"><label class="form-label">ملاحظة</label><input id="edit-expense-input-note" class="form-control" type="text"></div>
                     <div class="modal-actions"><button class="btn btn-secondary" type="button" onclick="closeModal('modal-edit-expense')">إلغاء</button><button class="btn btn-primary" type="submit">حفظ التعديل</button></div>
                 </form>
             `,
@@ -3012,19 +3012,24 @@ function renderExpenses() {
 
 function submitExpense(event) {
     event.preventDefault();
-    const form = event.currentTarget;
-    const id = document.getElementById('expense-input-id')?.value || '';
+    const isEdit = event.currentTarget.id === 'form-edit-expense';
+    const prefix = isEdit ? 'edit-expense-input' : 'expense-input';
+    const id = isEdit ? document.getElementById('edit-expense-input-id').value : '';
     const payload = {
         id,
-        date: document.getElementById('expense-input-date').value,
-        category: document.getElementById('expense-input-category').value.trim(),
-        amount: Number(document.getElementById('expense-input-amount').value),
-        method: document.getElementById('expense-input-method').value,
-        recipient: document.getElementById('expense-input-recipient').value.trim(),
-        note: document.getElementById('expense-input-note').value.trim(),
+        date: document.getElementById(`${prefix}-date`).value,
+        category: document.getElementById(`${prefix}-category`).value.trim(),
+        amount: Number(document.getElementById(`${prefix}-amount`).value),
+        method: document.getElementById(`${prefix}-method`).value,
+        recipient: document.getElementById(`${prefix}-recipient`).value.trim(),
+        note: document.getElementById(`${prefix}-note`).value.trim(),
     };
     if (!payload.date || !payload.category || !Number.isFinite(payload.amount) || payload.amount <= 0) {
         showAppNotice('يرجى إدخال تاريخ وبند ومبلغ المصروف بشكل صحيح.', 'warning', 5200);
+        return;
+    }
+    if (payload.method === 'تحويل' && !payload.recipient) {
+        showAppNotice('يرجى إدخال اسم الشخص أو الحساب المُحوِّل.', 'warning', 5200);
         return;
     }
     const action = id ? 'edit_expense' : 'add_expense';
@@ -3043,13 +3048,14 @@ function openEditExpenseModal(expenseId) {
     const expense = (state.expenses || []).find(item => Number(item.id) === Number(expenseId));
     if (!expense) return;
     openModal('modal-edit-expense');
-    document.getElementById('expense-input-id').value = expense.id;
-    document.getElementById('expense-input-date').value = String(expense.date || '').slice(0, 16);
-    document.getElementById('expense-input-category').value = expense.category || '';
-    document.getElementById('expense-input-amount').value = expense.amount || '';
-    document.getElementById('expense-input-method').value = expense.method || 'نقدي';
-    document.getElementById('expense-input-recipient').value = expense.recipient || '';
-    document.getElementById('expense-input-note').value = expense.note || '';
+    document.getElementById('edit-expense-input-id').value = expense.id;
+    document.getElementById('edit-expense-input-date').value = String(expense.date || '').replace(' ', 'T').slice(0, 16);
+    document.getElementById('edit-expense-input-category').value = expense.category || '';
+    document.getElementById('edit-expense-input-amount').value = expense.amount || '';
+    document.getElementById('edit-expense-input-method').value = expense.method || 'نقدي';
+    document.getElementById('edit-expense-input-recipient').value = expense.recipient || '';
+    document.getElementById('edit-expense-input-note').value = expense.note || '';
+    togglePaymentTransferAccountField('edit-expense-input-method', 'edit-expense-transfer-account-group', 'edit-expense-input-recipient');
 }
 
 function deleteExpense(expenseId) {

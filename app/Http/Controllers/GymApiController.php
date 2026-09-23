@@ -1698,7 +1698,7 @@ class GymApiController extends Controller
         $validator = Validator::make($data, [
             'date' => 'required|date', 'category' => 'required|string|max:120',
             'amount' => 'required|numeric|min:0.01', 'method' => 'required|in:نقدي,تحويل',
-            'recipient' => 'nullable|string|max:180', 'note' => 'nullable|string|max:2000',
+            'recipient' => 'required_if:method,تحويل|nullable|string|max:180', 'note' => 'nullable|string|max:2000',
         ]);
         if ($validator->fails()) return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
         $expense = Expense::create([
@@ -1720,7 +1720,7 @@ class GymApiController extends Controller
         $validator = Validator::make($data, [
             'id' => 'required|integer|exists:expenses,id', 'date' => 'required|date',
             'category' => 'required|string|max:120', 'amount' => 'required|numeric|min:0.01',
-            'method' => 'required|in:نقدي,تحويل', 'recipient' => 'nullable|string|max:180', 'note' => 'nullable|string|max:2000',
+            'method' => 'required|in:نقدي,تحويل', 'recipient' => 'required_if:method,تحويل|nullable|string|max:180', 'note' => 'nullable|string|max:2000',
         ]);
         if ($validator->fails()) return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
         $expense = Expense::findOrFail((int) $data['id']);
