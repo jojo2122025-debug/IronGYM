@@ -1588,7 +1588,7 @@ class GymApiController extends Controller
             'memberId' => 'required|string',
             'amount' => 'required|numeric|min:0',
             'method' => 'required|in:نقدي,تحويل',
-            'transferFromAccount' => 'required_if:method,تحويل|string|max:255',
+            'transferFromAccount' => 'required_if:method,تحويل|nullable|string|max:255',
             'note' => 'nullable|string|max:255',
         ], [
             'memberId.required' => 'يرجى اختيار المشترك أولًا.',
@@ -1650,7 +1650,7 @@ class GymApiController extends Controller
             'date' => 'required|date',
             'amount' => 'required|numeric|min:0',
             'method' => 'required|in:نقدي,تحويل',
-            'transferFromAccount' => 'required_if:method,تحويل|string|max:255',
+            'transferFromAccount' => 'required_if:method,تحويل|nullable|string|max:255',
             'note' => 'nullable|string|max:255',
         ], [
             'transferFromAccount.required_if' => 'يرجى إدخال اسم الشخص أو الحساب المُحوِّل.',

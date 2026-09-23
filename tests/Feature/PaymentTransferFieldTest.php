@@ -26,7 +26,7 @@ class PaymentTransferFieldTest extends TestCase
             'username' => 'accountant',
         ]);
 
-        $response = $this->postJson('/api/gym/add_payment', [
+        $response = $this->postJson('/api/add_payment', [
             'memberId' => $member->id,
             'amount' => 120,
             'method' => 'تحويل',
@@ -40,5 +40,31 @@ class PaymentTransferFieldTest extends TestCase
         $payment = Payment::query()->latest('created_at')->first();
         $this->assertNotNull($payment);
         $this->assertSame('حساب البنك الأهلي', $payment->transfer_from_account);
+    }
+
+    public function test_cash_payment_accepts_empty_transfer_account(): void
+    {
+        $member = Member::create([
+            'id' => Member::generateNextId(),
+            'name' => 'سالم أحمد',
+            'phone' => '0599999999',
+        ]);
+
+        session()->put('user', [
+            'id' => 1,
+            'name' => 'مدير',
+            'role' => 'المحاسب',
+            'username' => 'accountant',
+        ]);
+
+        $response = $this->postJson('/api/add_payment', [
+            'memberId' => $member->id,
+            'amount' => 120,
+            'method' => 'نقدي',
+            'transferFromAccount' => '',
+        ]);
+
+        $response->assertOk()->assertJsonPath('success', true);
+        $this->assertNull(Payment::query()->firstOrFail()->transfer_from_account);
     }
 }
