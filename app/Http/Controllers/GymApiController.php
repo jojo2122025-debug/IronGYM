@@ -1813,6 +1813,7 @@ class GymApiController extends Controller
         $basket = $data['basket'] ?? [];
         $paymentMethod = $data['paymentMethod'] ?? 'تحويل';
         $memberId = $data['memberId'] ?? '';
+        $transferFromAccount = trim((string) ($data['transferFromAccount'] ?? ''));
 
         if (empty($basket)) {
             return response()->json(['success' => false, 'error' => 'السلة فارغة'], 422);
@@ -1820,11 +1821,14 @@ class GymApiController extends Controller
         if (!in_array($paymentMethod, ['نقدي', 'تحويل'])) {
             return response()->json(['success' => false, 'error' => 'طريقة دفع غير صالحة'], 422);
         }
+        if ($paymentMethod === 'تحويل' && $transferFromAccount === '') {
+            return response()->json(['success' => false, 'error' => 'يرجى إدخال اسم الشخص أو الحساب المُحوِّل'], 422);
+        }
 
         $totalCost = 0.0;
         $itemsSummary = [];
 
-        DB::transaction(function () use ($basket, $paymentMethod, $memberId, &$totalCost, &$itemsSummary) {
+        DB::transaction(function () use ($basket, $paymentMethod, $memberId, $transferFromAccount, &$totalCost, &$itemsSummary) {
             $saleItems = [];
 
             foreach ($basket as $item) {
@@ -1890,6 +1894,7 @@ class GymApiController extends Controller
                 'date' => $dateStr,
                 'amount' => $totalCost,
                 'method' => $paymentMethod,
+                'transfer_from_account' => $paymentMethod === 'تحويل' ? $transferFromAccount : null,
                 'note' => 'شراء: ' . $productsDesc,
             ]);
         });

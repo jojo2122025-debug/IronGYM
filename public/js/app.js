@@ -525,10 +525,14 @@ function ensureMissingViewScaffold() {
                         </div>
                         <div class="basket-method">
                             <label class="basket-method-label" for="basket-payment-method">طريقة الدفع</label>
-                            <select id="basket-payment-method" class="form-control basket-method-select">
+                            <select id="basket-payment-method" class="form-control basket-method-select" onchange="togglePaymentTransferAccountField('basket-payment-method','basket-transfer-account-group','basket-transfer-from-account')">
                                 <option value="نقدي">نقدي</option>
                                 <option value="تحويل">تحويل</option>
                             </select>
+                        </div>
+                        <div id="basket-transfer-account-group" class="basket-method" style="display:none;">
+                            <label class="basket-method-label" for="basket-transfer-from-account">اسم الشخص أو الحساب المُحوِّل</label>
+                            <input id="basket-transfer-from-account" class="form-control" type="text" placeholder="مثال: أحمد محمد أو حساب البنك الأهلي">
                         </div>
                         <div class="basket-method">
                             <label class="basket-method-label" for="basket-member-select">ربط بالمشترك (اختياري)</label>
@@ -3167,8 +3171,14 @@ function checkoutBasket() {
 
     const paymentMethod = document.getElementById("basket-payment-method").value;
     const memberId = document.getElementById("basket-member-select") ? document.getElementById("basket-member-select").value : '';
+    const transferFromAccount = document.getElementById("basket-transfer-from-account")?.value.trim() || '';
+
+    if (paymentMethod === 'تحويل' && !transferFromAccount) {
+        showAppNotice("يرجى إدخال اسم الشخص أو الحساب المُحوِّل عند اختيار التحويل.", 'warning', 5200);
+        return;
+    }
     
-    const payload = { basket: state.basket, paymentMethod, memberId };
+    const payload = { basket: state.basket, paymentMethod, memberId, transferFromAccount };
 
     if (!navigator.onLine) {
         queueOfflineSyncEvent('checkout_basket', payload);
