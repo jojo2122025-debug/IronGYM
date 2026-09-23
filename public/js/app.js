@@ -909,7 +909,7 @@ function ensureMissingViewScaffold() {
                 </table>
             </div>
         `,
-        "activity-log": `<div class="card table-responsive"><table class="custom-table"><thead><tr><th>المستخدم</th><th>الاسم</th><th>الدور</th><th>الحركة</th><th>التفاصيل</th><th>الوقت</th></tr></thead><tbody id="activity-log-table-body"></tbody></table></div>`,
+        "activity-log": `<div class="card table-responsive"><table class="custom-table"><thead><tr><th>الوقت</th><th>المستخدم</th><th>الدور</th><th>الحركة</th><th>التفاصيل</th></tr></thead><tbody id="activity-log-table-body"></tbody></table></div>`,
         "global-search": `
             <div class="card" style="margin-bottom: 16px;">
                 <div style="display:grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap:8px; align-items:center;">
@@ -4141,7 +4141,7 @@ function isViewAllowed(viewName) {
     const role = state.currentUser.role;
 
     if (role === 'مدير النظام' || role === 'مدير الصالة') {
-        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'plans', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'global-search'].includes(viewName);
+        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'plans', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'activity-log', 'global-search'].includes(viewName);
     }
 
     const permissions = {
@@ -5485,8 +5485,14 @@ function deleteUser(userId) {
 // ==================== ACTIVITY LOG SYSTEM ====================
 
 function renderActivityLog() {
-    fetch('/api/get_activity_log')
-    .then(r => r.json())
+    fetch('/api/get_activity_log', { credentials: 'same-origin' })
+    .then(async response => {
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(result.error || 'تعذر تحميل سجل الحركات.');
+        }
+        return result;
+    })
     .then(res => {
         const tbody = document.getElementById("activity-log-table-body");
         if (!tbody) return;
@@ -5497,11 +5503,11 @@ function renderActivityLog() {
             } else {
                 tbody.innerHTML = res.logs.map(l => `
                     <tr>
-                        <td class="val-mono">${l.created_at}</td>
-                        <td><strong>${l.name}</strong> <span style="font-size: 11px; color: var(--text-muted);">(${l.username})</span></td>
-                        <td><span class="badge ${l.role === 'مدير النظام' ? 'badge-active' : 'badge-frozen'}">${l.role}</span></td>
-                        <td><strong>${l.action}</strong></td>
-                        <td><span style="font-size: 13px; color: var(--text-secondary);">${l.details}</span></td>
+                        <td class="val-mono">${formatDateTime(l.created_at)}</td>
+                        <td><strong>${escapeHtml(l.name || '—')}</strong> <span style="font-size: 11px; color: var(--text-muted);">(${escapeHtml(l.username || '—')})</span></td>
+                        <td><span class="badge ${l.role === 'مدير النظام' ? 'badge-active' : 'badge-frozen'}">${escapeHtml(l.role || '—')}</span></td>
+                        <td><strong>${escapeHtml(l.action || '—')}</strong></td>
+                        <td><span style="font-size: 13px; color: var(--text-secondary);">${escapeHtml(l.details || '—')}</span></td>
                     </tr>
                 `).join("");
             }
@@ -5510,10 +5516,10 @@ function renderActivityLog() {
         }
         applyTableFiltersForBody("activity-log-table-body");
     })
-    .catch(() => {
+    .catch(error => {
         const tbody = document.getElementById("activity-log-table-body");
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color: var(--accent-red);">تعذر تحميل سجل الحركات. أعد المحاولة لاحقاً.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color: var(--accent-red);">${escapeHtml(error.message || 'تعذر تحميل سجل الحركات. أعد المحاولة لاحقاً.')}</td></tr>`;
         }
     });
 }
