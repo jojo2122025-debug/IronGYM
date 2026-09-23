@@ -181,48 +181,40 @@
                 </div>
             </div>
             <div id="view-dashboard" class="view-panel active">
-                <div class="metrics-grid">
-                    <div class="card metric-card">
-                        <div class="metric-details">
-                            <span class="metric-title">إجمالي المشتركين</span>
-                            <span class="metric-value" id="dash-total-members">0</span>
-                            <span class="metric-sub">المسجلين بالنظام</span>
-                        </div>
-                        <div class="metric-icon-box icon-red">
-                            <i data-lucide="users"></i>
-                        </div>
+                <section class="dashboard-today" aria-labelledby="dashboard-today-title" aria-busy="true">
+                    <div class="dashboard-today-head">
+                        <div><span class="dashboard-eyebrow">العمليات اليومية</span><h2 id="dashboard-today-title">نبض الصالة اليوم</h2><p id="dash-date-label">جارٍ تحميل بيانات اليوم…</p></div>
+                        <button id="dash-refresh" class="dashboard-refresh" type="button" onclick="refreshDashboard()"><i data-lucide="refresh-cw" aria-hidden="true"></i><span>تحديث البيانات</span></button>
                     </div>
-                    <div class="card metric-card">
-                        <div class="metric-details">
-                            <span class="metric-title">مجمدة</span>
-                            <span class="metric-value" id="dash-frozen-members">0</span>
-                            <span class="metric-sub">اشتراكات موقوفة</span>
-                        </div>
-                        <div class="metric-icon-box icon-blue">
-                            <i data-lucide="snowflake"></i>
-                        </div>
+                    <p id="dash-load-status" class="dashboard-load-status" role="status" aria-live="polite">جارٍ تحميل المؤشرات…</p>
+                    <div class="dashboard-primary-metrics">
+                        <article class="dashboard-today-metric is-attendance"><span class="dashboard-metric-label"><i data-lucide="user-check" aria-hidden="true"></i>الحضور اليوم</span><strong id="dash-today-attendance">—</strong><small>عملية دخول مسجلة</small></article>
+                        <article class="dashboard-today-metric is-inside"><span class="dashboard-metric-label"><i data-lucide="activity" aria-hidden="true"></i>الموجودون الآن</span><strong id="dash-currently-inside">—</strong><small>داخل الصالة حاليًا</small></article>
+                        <article class="dashboard-today-metric is-revenue"><span class="dashboard-metric-label"><i data-lucide="wallet" aria-hidden="true"></i>تحصيل اليوم</span><strong id="dash-today-revenue">—</strong><small><span id="dash-payments-today">—</span> دفعة مستلمة</small></article>
+                        <article class="dashboard-today-metric is-renewal"><span class="dashboard-metric-label"><i data-lucide="calendar-clock" aria-hidden="true"></i>تجديدات قريبة</span><strong id="dash-expiring-members">—</strong><small>تنتهي خلال 3 أيام</small></article>
                     </div>
-                    <div class="card metric-card">
-                        <div class="metric-details">
-                            <span class="metric-title">منتهية</span>
-                            <span class="metric-value" id="dash-expired-members">0</span>
-                            <span class="metric-sub">بحاجة للتجديد</span>
-                        </div>
-                        <div class="metric-icon-box icon-red">
-                            <i data-lucide="calendar-x"></i>
-                        </div>
+                    <div class="dashboard-secondary-metrics" aria-label="تفاصيل نشاط اليوم">
+                        <div><span>مشتركون جدد</span><strong id="dash-new-members">—</strong></div>
+                        <div><span>نقدًا</span><strong id="dash-cash-today">—</strong></div>
+                        <div><span>تحويل</span><strong id="dash-transfer-today">—</strong></div>
+                        <div><span>مصروفات</span><strong id="dash-expenses-today">—</strong></div>
+                        <div class="is-net"><span>صافي التدفق</span><strong id="dash-net-today">—</strong></div>
                     </div>
-                    <div class="card metric-card">
-                        <div class="metric-details">
-                            <span class="metric-title">ينتهي خلال 3 أيام</span>
-                            <span class="metric-value" id="dash-expiring-members">0</span>
-                            <span class="metric-sub">تنبيهات التجديد</span>
-                        </div>
-                        <div class="metric-icon-box icon-yellow">
-                            <i data-lucide="bell-ring"></i>
-                        </div>
-                    </div>
-                </div>
+                </section>
+
+                <section class="dashboard-shortcuts" aria-label="إجراءات سريعة">
+                    <span>إجراءات سريعة</span>
+                    <button type="button" data-dashboard-action="member" onclick="dashboardQuickAction('members', 'modal-add-member')"><i data-lucide="user-plus" aria-hidden="true"></i>مشترك جديد</button>
+                    <button type="button" data-dashboard-action="attendance" onclick="dashboardQuickAction('check-in')"><i data-lucide="scan-line" aria-hidden="true"></i>تسجيل حضور</button>
+                    <button type="button" data-dashboard-action="payment" onclick="dashboardQuickAction('payments', 'modal-add-payment')"><i data-lucide="credit-card" aria-hidden="true"></i>إضافة دفعة</button>
+                    <button type="button" data-dashboard-action="subscription" onclick="dashboardQuickAction('subscriptions', 'modal-add-subscription')"><i data-lucide="clipboard-plus" aria-hidden="true"></i>اشتراك جديد</button>
+                </section>
+
+                <section class="dashboard-member-summary" aria-label="حالة العضويات">
+                    <div><span>إجمالي المشتركين</span><strong id="dash-total-members">—</strong></div>
+                    <div><span>اشتراكات مجمدة</span><strong id="dash-frozen-members">—</strong></div>
+                    <div><span>اشتراكات منتهية</span><strong id="dash-expired-members">—</strong></div>
+                </section>
 
                 <div class="charts-grid dashboard-charts-grid">
                     <section class="card chart-card dashboard-chart-card">
@@ -232,9 +224,9 @@
                                 <h2 class="chart-main-title">الإيرادات</h2>
                             </div>
                             <div class="dashboard-period-tabs" role="group" aria-label="فترة الإيرادات">
-                                <button class="dashboard-period-tab" type="button" data-revenue-days="1">اليوم</button>
-                                <button class="dashboard-period-tab" type="button" data-revenue-days="7">الأسبوع</button>
-                                <button class="dashboard-period-tab active" type="button" data-revenue-days="14">الشهر</button>
+                                <button class="dashboard-period-tab" type="button" data-revenue-days="1" aria-pressed="false">اليوم</button>
+                                <button class="dashboard-period-tab" type="button" data-revenue-days="7" aria-pressed="false">7 أيام</button>
+                                <button class="dashboard-period-tab active" type="button" data-revenue-days="14" aria-pressed="true">14 يومًا</button>
                             </div>
                         </div>
                         <div class="dashboard-canvas-wrap"><canvas id="chart-revenue-dashboard"></canvas></div>
@@ -246,9 +238,9 @@
                                 <h2 class="chart-main-title">أوقات الذروة</h2>
                             </div>
                             <div class="dashboard-period-tabs" role="group" aria-label="فترة أوقات الذروة">
-                                <button class="dashboard-period-tab active" type="button" data-peak-range="day">اليوم</button>
-                                <button class="dashboard-period-tab" type="button" data-peak-range="week">الأسبوع</button>
-                                <button class="dashboard-period-tab" type="button" data-peak-range="month">الشهر</button>
+                                <button class="dashboard-period-tab active" type="button" data-peak-range="day" aria-pressed="true">اليوم</button>
+                                <button class="dashboard-period-tab" type="button" data-peak-range="week" aria-pressed="false">الأسبوع</button>
+                                <button class="dashboard-period-tab" type="button" data-peak-range="month" aria-pressed="false">الشهر</button>
                             </div>
                         </div>
                         <div class="dashboard-canvas-wrap"><canvas id="chart-attendance-dashboard"></canvas></div>

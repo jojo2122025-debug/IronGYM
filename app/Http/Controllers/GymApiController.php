@@ -280,7 +280,8 @@ class GymApiController extends Controller
         $today = Carbon::now()->toDateString();
         $reports = $this->buildReportsPayload(Carbon::now());
 
-        $todayRevenue = (float) Payment::where('date', 'like', "$today%")->sum('amount');
+        $dailyOperations = $this->buildDailyOperations($today);
+        $todayRevenue = $dailyOperations['revenueToday'];
         $monthlyRevenue = (float) Payment::where('date', 'like', "$monthly-%")->sum('amount');
         $productSales = (float) Sale::sum('total');
 
@@ -332,7 +333,8 @@ class GymApiController extends Controller
                 'notifications' => $notifications,
                 'todayRevenue' => $todayRevenue,
                 'monthlyRevenue' => $monthlyRevenue,
-                'todayAttendance' => $checkins->count(),
+                'todayAttendance' => $dailyOperations['attendanceToday'],
+                'dailyOperations' => $dailyOperations,
                 'renewalRate' => (float) ($reports['renewalRate'] ?? 0),
                 'productSales' => $productSales,
                 'revenueHistory' => $dailyRevenues,
@@ -346,6 +348,38 @@ class GymApiController extends Controller
         ]);
     }
 
+    /** @return array<string, int|float|string> */
+    protected function buildDailyOperations(string $today): array
+    {
+        $validCheckins = Checkin::query()
+            ->whereDate('created_at', $today)
+            ->where(function ($query) {
+                $query->where('status', 'allowed')->orWhereNull('status');
+            });
+        $payments = Payment::query()->whereDate('date', $today);
+        $revenueToday = (float) (clone $payments)->sum('amount');
+        $expensesToday = (float) Expense::query()->whereDate('date', $today)->sum('amount');
+
+        return [
+            'date' => $today,
+            'attendanceToday' => (int) (clone $validCheckins)->count(),
+            'currentlyInside' => (int) (clone $validCheckins)->whereNull('checkout_at')->count(),
+            'paymentsToday' => (int) (clone $payments)->count(),
+            'revenueToday' => $revenueToday,
+            'cashToday' => (float) (clone $payments)->where('method', 'نقدي')->sum('amount'),
+            'transferToday' => (float) (clone $payments)->where('method', 'تحويل')->sum('amount'),
+            'expensesToday' => $expensesToday,
+            'netToday' => $revenueToday - $expensesToday,
+            'newMembersToday' => (int) Member::query()->whereDate('created_at', $today)->count(),
+            'expiringMembers' => (int) Subscription::query()
+                ->where('status', 'فعال')
+                ->whereDate('end_date', '>=', $today)
+                ->whereDate('end_date', '<=', Carbon::parse($today)->addDays(3)->toDateString())
+                ->distinct('member_id')
+                ->count('member_id'),
+        ];
+    }
+
     /** @return array<string, int> */
     protected function peakHoursSince(Carbon $from): array
     {
@@ -356,6 +390,9 @@ class GymApiController extends Controller
 
         $rows = DB::table('checkins')
             ->where('created_at', '>=', $from->format('Y-m-d H:i:s'))
+            ->where(function ($query) {
+                $query->where('status', 'allowed')->orWhereNull('status');
+            })
             ->selectRaw("SUBSTRING(created_at, 12, 2) as chk_hour, COUNT(*) as cnt")
             ->groupBy('chk_hour')
             ->get();

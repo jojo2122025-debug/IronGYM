@@ -949,7 +949,8 @@ function ensureMissingViewScaffold() {
 // 2. State & Sync Controller
 function loadStateAndRender(viewName) {
     // Show a loading text or indicator where necessary
-    fetch(resolveApiUrl('get_state'))
+    if (viewName === 'dashboard') setDashboardLoading(true);
+    return fetch(resolveApiUrl('get_state'))
         .then(async response => {
             const data = await response.json();
             return { ok: response.ok, status: response.status, data };
@@ -984,11 +985,46 @@ function loadStateAndRender(viewName) {
             } else {
                 console.error("Failed to load state:", res.error);
                 showAppNotice("حدث خطأ أثناء تحميل البيانات من قاعدة البيانات: " + res.error, 'error', 5200);
+                if (viewName === 'dashboard') setDashboardLoading(false, 'تعذر تحديث المؤشرات. حاول مرة أخرى.');
             }
         })
         .catch(err => {
             console.error("API error:", err);
+            if (viewName === 'dashboard') setDashboardLoading(false, 'تعذر الاتصال لتحديث المؤشرات. حاول مرة أخرى.');
         });
+}
+
+function setDashboardLoading(loading, message = '') {
+    const section = document.querySelector('.dashboard-today');
+    const button = document.getElementById('dash-refresh');
+    const status = document.getElementById('dash-load-status');
+    if (section) section.setAttribute('aria-busy', String(loading));
+    if (button) button.disabled = loading;
+    if (status) status.textContent = message || (loading ? 'جارٍ تحديث بيانات اليوم…' : '');
+}
+
+function refreshDashboard() {
+    if (currentView === 'dashboard') loadStateAndRender('dashboard');
+}
+
+function dashboardQuickAction(viewName, modalId = null) {
+    if (!isViewAllowed(viewName)) return;
+    switchView(viewName);
+    if (modalId) openModal(modalId);
+}
+
+function updateDashboardActions() {
+    const permissions = {
+        member: { view: 'members', roles: ['مدير النظام', 'مدير الصالة', 'موظف الاستقبال'] },
+        attendance: { view: 'check-in', roles: ['مدير النظام', 'مدير الصالة', 'موظف الاستقبال'] },
+        payment: { view: 'payments', roles: ['مدير النظام', 'مدير الصالة', 'المحاسب'] },
+        subscription: { view: 'subscriptions', roles: ['مدير النظام', 'مدير الصالة', 'المحاسب'] }
+    };
+    const role = state.currentUser?.role;
+    document.querySelectorAll('[data-dashboard-action]').forEach(button => {
+        const permission = permissions[button.dataset.dashboardAction];
+        button.hidden = !permission || !permission.roles.includes(role) || !isViewAllowed(permission.view);
+    });
 }
 
 function calculateRenewalRate() {
@@ -1964,7 +2000,14 @@ function downloadMemberQrCode() {
 
 // View 1: Dashboard
 function renderDashboard() {
-    safeSetText("dash-today-revenue", formatMoney(state.todayRevenue));
+    const daily = state.dailyOperations || {};
+    const dailyValue = (key, fallback = 0) => toNumber(daily[key] ?? fallback);
+    const dateLabel = document.getElementById('dash-date-label');
+    if (dateLabel) {
+        const dateSource = /^\d{4}-\d{2}-\d{2}$/.test(String(daily.date || '')) ? `${daily.date}T12:00:00` : null;
+        dateLabel.textContent = new Intl.DateTimeFormat('ar-PS', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(dateSource ? new Date(dateSource) : new Date());
+    }
+    safeSetText("dash-today-revenue", formatMoney(dailyValue('revenueToday', state.todayRevenue)));
     safeSetText("dash-month-revenue", formatMoney(state.monthlyRevenue));
     
     // Active members
@@ -1972,7 +2015,16 @@ function renderDashboard() {
     safeSetText("dash-active-members", activeMembersSet.size);
     safeSetText("dash-active-subtext", `من ${state.members.length} مشترك`);
     
-    safeSetText("dash-today-attendance", state.todayAttendance);
+    safeSetText("dash-today-attendance", dailyValue('attendanceToday', state.todayAttendance));
+    safeSetText("dash-currently-inside", dailyValue('currentlyInside'));
+    safeSetText("dash-payments-today", dailyValue('paymentsToday'));
+    safeSetText("dash-new-members", dailyValue('newMembersToday'));
+    safeSetText("dash-cash-today", formatMoney(dailyValue('cashToday')));
+    safeSetText("dash-transfer-today", formatMoney(dailyValue('transferToday')));
+    safeSetText("dash-expenses-today", formatMoney(dailyValue('expensesToday')));
+    const net = dailyValue('netToday');
+    safeSetText("dash-net-today", formatMoney(net));
+    document.getElementById('dash-net-today')?.classList.toggle('is-negative', net < 0);
     
     let expiredSubs = state.subscriptions.filter(s => s.status === "منتهي").length;
     let frozenSubs = state.subscriptions.filter(s => s.status === "مجمد").length;
@@ -1987,20 +2039,23 @@ function renderDashboard() {
     safeSetText("dash-frozen-members", frozenSubs);
     safeSetText("dash-expired-members", expiredSubs);
     safeSetText("dash-total-members", state.members.length);
-    safeSetText("dash-expiring-members", expiringSubs.length);
+    const expiringCount = dailyValue('expiringMembers', expiringSubs.length);
+    safeSetText("dash-expiring-members", expiringCount);
 
-    renderDashboardDetails(activeMembersSet.size, expiringSubs.length);
+    renderDashboardDetails(activeMembersSet.size, expiringCount);
+    updateDashboardActions();
+    setDashboardLoading(false);
     initRevenueChart("chart-revenue-dashboard", "dashboard", 14);
     initAttendanceChart("chart-attendance-dashboard", "dashboard", 'day');
     document.querySelectorAll('[data-revenue-days]').forEach(button => {
         button.onclick = () => {
-            document.querySelectorAll('[data-revenue-days]').forEach(tab => tab.classList.toggle('active', tab === button));
+            document.querySelectorAll('[data-revenue-days]').forEach(tab => { tab.classList.toggle('active', tab === button); tab.setAttribute('aria-pressed', String(tab === button)); });
             initRevenueChart("chart-revenue-dashboard", "dashboard", Number(button.dataset.revenueDays));
         };
     });
     document.querySelectorAll('[data-peak-range]').forEach(button => {
         button.onclick = () => {
-            document.querySelectorAll('[data-peak-range]').forEach(tab => tab.classList.toggle('active', tab === button));
+            document.querySelectorAll('[data-peak-range]').forEach(tab => { tab.classList.toggle('active', tab === button); tab.setAttribute('aria-pressed', String(tab === button)); });
             initAttendanceChart("chart-attendance-dashboard", "dashboard", button.dataset.peakRange);
         };
     });
@@ -2030,7 +2085,7 @@ function renderDashboardDetails(activeMembersCount, expiringCount) {
     const insights = [
         ['معدل التحويل', `${conversion.toFixed(1)}%`, 'من المشتركين النشطين'],
         ['متوسط قيمة الاشتراك', formatMoney(averageSubscription), 'حسب الاشتراكات المسجلة'],
-        ['معدل التجديد', `${toNumber(state.renewalRate).toFixed(0)}%`, 'آخر 30 يوماً'],
+        ['نسبة الاشتراكات الفعالة', `${toNumber(state.renewalRate).toFixed(0)}%`, 'من الاشتراكات الفعالة والمنتهية'],
         ['المدفوعات المعلقة', state.reports?.debtMembersCount || 0, 'مشترك بحاجة متابعة'],
     ];
     const insightsTarget = document.getElementById('dash-insights');
@@ -2038,23 +2093,18 @@ function renderDashboardDetails(activeMembersCount, expiringCount) {
         insightsTarget.innerHTML = insights.map(([label, value, detail]) => `<div class="insight-row"><div><strong>${value}</strong><span>${label}</span></div><small>${detail}</small></div>`).join('');
     }
 
-    const now = new Date();
-    const absentCount = state.members.filter(member => {
-        const lastCheckin = state.checkins.find(checkin => (checkin.member_id || checkin.memberId) === member.id);
-        if (!lastCheckin) return false;
-        const lastDate = new Date(lastCheckin.created_at || lastCheckin.checkin_time || 0);
-        return !Number.isNaN(lastDate.getTime()) && (now - lastDate) > 30 * 86400000;
-    }).length;
-    const todayKey = now.toISOString().slice(0, 10);
-    const todayPayments = state.payments.filter(p => String(p.date || '').slice(0, 10) === todayKey).length;
+    const expiredCount = new Set(state.subscriptions.filter(subscription => subscription.status === 'منتهي').map(subscription => subscription.member_id || subscription.memberId)).size;
+    const todayPayments = toNumber(state.dailyOperations?.paymentsToday ?? 0);
     const alerts = [
-        [expiringCount, 'اشتراك ينتهي خلال 3 أيام', 'calendar-clock'],
-        [todayPayments, 'دفعات تم استلامها اليوم', 'circle-dollar-sign'],
-        [absentCount, 'أعضاء لم يزوروا منذ شهر', 'user-round-x'],
+        [expiringCount, 'اشتراك ينتهي خلال 3 أيام', 'calendar-clock', 'subscriptions'],
+        [todayPayments, 'دفعات تم استلامها اليوم', 'circle-dollar-sign', 'payments'],
+        [expiredCount, 'عضوية منتهية', 'calendar-x', 'subscriptions'],
     ];
     const alertsTarget = document.getElementById('dash-alerts');
     if (alertsTarget) {
-        alertsTarget.innerHTML = alerts.map(([count, label, icon]) => `<div class="dashboard-alert-row"><div class="dashboard-alert-icon"><i data-lucide="${icon}"></i></div><div><strong>${count} ${label}</strong><span>تحديث مباشر من بيانات النظام</span></div></div>`).join('');
+        alertsTarget.innerHTML = alerts.some(([count]) => count > 0)
+            ? alerts.filter(([count]) => count > 0).map(([count, label, icon, view]) => `<button type="button" class="dashboard-alert-row" onclick="dashboardQuickAction('${view}')"><span class="dashboard-alert-icon"><i data-lucide="${icon}" aria-hidden="true"></i></span><span><strong>${count} ${label}</strong><span>عرض التفاصيل</span></span><i data-lucide="arrow-left" aria-hidden="true"></i></button>`).join('')
+            : '<div class="dashboard-empty">لا توجد تنبيهات تحتاج إلى متابعة الآن.</div>';
     }
     if (window.lucide) window.lucide.createIcons();
 }
@@ -3927,7 +3977,7 @@ function initRevenueChart(canvasId, type, days = 7) {
     for (let i = days - 1; i >= 0; i--) {
         const day = new Date();
         day.setDate(day.getDate() - i);
-        const key = day.toISOString().slice(0, 10);
+        const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
         labels.push(days === 1 ? 'اليوم' : key.slice(5));
         values.push(Number(toNumber(state.revenueHistory?.[key]).toFixed(2)));
     }
