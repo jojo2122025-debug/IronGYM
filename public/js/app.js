@@ -6805,17 +6805,31 @@ function openEditSubscriptionModal(subId) {
         showAppNotice("الاشتراك غير موجود!");
         return;
     }
-    
+
+    // Ensure the lazily-created modal fields exist before populating them.
+    openModal("modal-edit-subscription");
+
     const member = state.members.find(m => m.id === sub.member_id) || { name: "مجهول" };
-    
-    document.getElementById("edit-sub-id").value = sub.id;
-    document.getElementById("edit-sub-member-name").value = `${member.name} (${sub.member_id})`;
+    const idInput = document.getElementById("edit-sub-id");
+    const memberNameInput = document.getElementById("edit-sub-member-name");
+    const startDateInput = document.getElementById("edit-sub-start-date");
+    const endDateInput = document.getElementById("edit-sub-end-date");
+    const amountInput = document.getElementById("edit-sub-amount");
+    const paidInput = document.getElementById("edit-sub-paid");
+    const statusInput = document.getElementById("edit-sub-status");
+    if (![idInput, memberNameInput, startDateInput, endDateInput, amountInput, paidInput, statusInput].every(Boolean)) {
+        showAppNotice("تعذر فتح نموذج تعديل الاشتراك. أعد تحميل الصفحة ثم حاول مجدداً.", 'error');
+        return;
+    }
+
+    idInput.value = sub.id || '';
+    memberNameInput.value = `${member.name} (${sub.member_id || '—'})`;
     ensureEditSubscriptionPlanSelect(sub.plan_id, sub.plan_name);
-    document.getElementById("edit-sub-start-date").value = sub.start_date;
-    document.getElementById("edit-sub-end-date").value = sub.end_date;
-    document.getElementById("edit-sub-amount").value = sub.amount;
-    document.getElementById("edit-sub-paid").value = sub.paid;
-    document.getElementById("edit-sub-status").value = sub.status;
+    startDateInput.value = String(sub.start_date || '').slice(0, 10);
+    endDateInput.value = String(sub.end_date || '').slice(0, 10);
+    amountInput.value = sub.amount ?? '';
+    paidInput.value = sub.paid ?? '';
+    statusInput.value = sub.status || 'فعال';
 
     const editSubAmountInput = document.getElementById("edit-sub-amount");
     const editSubPaidInput = document.getElementById("edit-sub-paid");
@@ -6842,10 +6856,9 @@ function openEditSubscriptionModal(subId) {
         };
     }
     
-    openModal("modal-edit-subscription");
 }
 
-function submitEditSubscription(event) {
+async function submitEditSubscription(event) {
     event.preventDefault();
     
     const subId = document.getElementById("edit-sub-id").value;
@@ -6864,10 +6877,8 @@ function submitEditSubscription(event) {
         return;
     }
     
-    fetch('/api/edit_subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    try {
+        const res = await postApi('edit_subscription', {
             subId: subId,
             planId: planId,
             planName: planName,
@@ -6876,10 +6887,7 @@ function submitEditSubscription(event) {
             amount: amount,
             paid: paid,
             status: status
-        })
-    })
-    .then(r => r.json())
-    .then(res => {
+        });
         if (res.success) {
             closeModal("modal-edit-subscription");
             showAppNotice("تم تعديل الاشتراك وحفظ البيانات بنجاح!");
@@ -6891,13 +6899,12 @@ function submitEditSubscription(event) {
                 loadStateAndRender(currentView);
             }
         } else {
-            showAppNotice("خطأ أثناء الحفظ: " + res.error);
+            showAppNotice("خطأ أثناء الحفظ: " + (res.error || 'تعذر حفظ التعديلات.'));
         }
-    })
-    .catch(err => {
+    } catch (err) {
         console.error("Edit subscription error:", err);
         showAppNotice("حدث خطأ بالاتصال أثناء إرسال البيانات!");
-    });
+    }
 }
 
 // ==================== EDIT PAYMENT WORKSPACE ====================
