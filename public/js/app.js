@@ -6907,17 +6907,33 @@ function openEditPaymentModal(payId) {
         showAppNotice("الدفعة غير موجودة!");
         return;
     }
-    
-    document.getElementById("edit-pay-id").value = pay.id;
-    document.getElementById("edit-pay-member-name").value = getPaymentMemberDisplay(pay);
-    document.getElementById("edit-pay-date").value = pay.date;
-    document.getElementById("edit-pay-amount").value = pay.amount;
-    document.getElementById("edit-pay-method").value = pay.method;
-    document.getElementById("edit-pay-transfer-from-account").value = pay.transfer_from_account || "";
-    document.getElementById("edit-pay-note").value = pay.note || "";
-    togglePaymentTransferAccountField('edit-pay-method', 'edit-pay-transfer-account-group', 'edit-pay-transfer-from-account');
-    
+
+    // The modal may be created lazily, so it must exist before querying its fields.
     openModal("modal-edit-payment");
+
+    const fields = {
+        id: document.getElementById("edit-pay-id"),
+        memberName: document.getElementById("edit-pay-member-name"),
+        date: document.getElementById("edit-pay-date"),
+        amount: document.getElementById("edit-pay-amount"),
+        method: document.getElementById("edit-pay-method"),
+        transferFromAccount: document.getElementById("edit-pay-transfer-from-account"),
+        note: document.getElementById("edit-pay-note"),
+    };
+
+    if (!Object.values(fields).every(Boolean)) {
+        showAppNotice("تعذر فتح نموذج تعديل الدفعة. أعد تحميل الصفحة ثم حاول مجدداً.", 'error');
+        return;
+    }
+
+    fields.id.value = pay.id || '';
+    fields.memberName.value = getPaymentMemberDisplay(pay);
+    fields.date.value = String(pay.date || '').slice(0, 16);
+    fields.amount.value = pay.amount ?? '';
+    fields.method.value = pay.method || 'نقدي';
+    fields.transferFromAccount.value = pay.transfer_from_account || '';
+    fields.note.value = pay.note || '';
+    togglePaymentTransferAccountField('edit-pay-method', 'edit-pay-transfer-account-group', 'edit-pay-transfer-from-account');
 }
 
 function submitEditPayment(event) {
