@@ -1411,6 +1411,10 @@ function ensureFallbackModal(modalId) {
                 </form>
             `,
         },
+        "modal-expense-receipt-preview": {
+            title: "معاينة فاتورة المشتريات",
+            body: `<div id="expense-receipt-preview-content" style="min-height:280px;display:flex;align-items:center;justify-content:center;"></div>`,
+        },
         "modal-add-product": {
             title: "إضافة منتج",
             body: `
@@ -1651,6 +1655,7 @@ function ensureFallbackModals() {
         "modal-edit-payment",
         "modal-add-expense",
         "modal-edit-expense",
+        "modal-expense-receipt-preview",
         "modal-add-product",
         "modal-edit-product-stock",
         "modal-add-user",
@@ -3002,7 +3007,7 @@ function renderExpenses() {
                 <td>${escapeHtml(expense.method || 'نقدي')}</td>
                 <td>${escapeHtml(expense.note || '—')}</td>
                 <td><div style="display:flex;gap:8px;">
-                    ${expense.receipt_path ? `<a class="btn btn-secondary btn-sm" href="/${encodeURI(String(expense.receipt_path).replace(/^\/+/, ''))}" target="_blank" rel="noopener" title="عرض الفاتورة"><i data-lucide="file-text" style="width:13px;height:13px;"></i><span>عرض الفاتورة</span></a>` : ''}
+                    ${expense.receipt_path ? `<button class="btn btn-secondary btn-sm" onclick="openExpenseReceiptPreview(${JSON.stringify(String(expense.receipt_path)).replace(/"/g, '&quot;')})" title="عرض الفاتورة"><i data-lucide="file-text" style="width:13px;height:13px;"></i><span>عرض الفاتورة</span></button>` : ''}
                     <button class="btn btn-secondary btn-sm" onclick="openEditExpenseModal(${Number(expense.id)})" title="تعديل"><i data-lucide="edit-2" style="width:13px;height:13px;"></i></button>
                     <button class="btn btn-danger btn-sm" onclick="deleteExpense(${Number(expense.id)})" title="حذف"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
                 </div></td>
@@ -3076,6 +3081,22 @@ function openEditExpenseModal(expenseId) {
     document.getElementById('edit-expense-input-recipient').value = expense.recipient || '';
     document.getElementById('edit-expense-input-note').value = expense.note || '';
     togglePaymentTransferAccountField('edit-expense-input-method', 'edit-expense-transfer-account-group', 'edit-expense-input-recipient');
+}
+
+function openExpenseReceiptPreview(receiptPath) {
+    const normalizedPath = String(receiptPath || '').replace(/^\/+/, '');
+    if (!normalizedPath.startsWith('uploads/expense-receipts/')) {
+        showAppNotice('رابط الفاتورة غير صالح.', 'error', 5200);
+        return;
+    }
+    openModal('modal-expense-receipt-preview');
+    const content = document.getElementById('expense-receipt-preview-content');
+    if (!content) return;
+    const source = '/' + encodeURI(normalizedPath);
+    const isPdf = normalizedPath.toLowerCase().endsWith('.pdf');
+    content.innerHTML = isPdf
+        ? `<iframe src="${source}" title="فاتورة المشتريات" style="width:min(900px, 100%);height:70vh;border:0;border-radius:10px;background:#fff;"></iframe>`
+        : `<img src="${source}" alt="فاتورة المشتريات" style="display:block;max-width:100%;max-height:70vh;object-fit:contain;border-radius:10px;">`;
 }
 
 function deleteExpense(expenseId) {
