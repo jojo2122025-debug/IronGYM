@@ -775,9 +775,15 @@ function ensureMissingViewScaffold() {
                             </div>
                         </div>
                     </div>
-                    <div style="text-align: center;">
-                        <img id="md-qr-code" src="" alt="QR" style="width: 100px; height: 100px; border-radius: 8px; border: 1px solid var(--border-color);">
-                        <div id="md-qr-label" class="val-mono" style="margin-top: 6px; color: var(--text-secondary);">—</div>
+                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-secondary" id="md-print-form-btn" onclick="openMemberPrintForm()" title="طباعة استمارة بيانات المشترك واشتراكاته ومدفوعاته">
+                            <i data-lucide="printer" style="width: 17px; height: 17px;"></i>
+                            طباعة استمارة المشترك
+                        </button>
+                        <div style="text-align: center;">
+                            <img id="md-qr-code" src="" alt="QR" style="width: 100px; height: 100px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div id="md-qr-label" class="val-mono" style="margin-top: 6px; color: var(--text-secondary);">—</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -5254,9 +5260,25 @@ function switchDetailTab(tabName, btnElement) {
     }
 }
 
+function openMemberPrintForm() {
+    const memberId = document.getElementById("md-print-form-btn")?.dataset.memberId;
+    if (!memberId) {
+        showAppNotice("تعذر تحديد المشترك للطباعة", "warning");
+        return;
+    }
+    const printWindow = window.open('/members/' + encodeURIComponent(memberId) + '/print', '_blank');
+    if (printWindow) {
+        printWindow.opener = null;
+    } else {
+        showAppNotice("تعذر فتح نافذة الاستمارة. يرجى السماح بالنوافذ المنبثقة ثم المحاولة مجددًا", "error", 5200);
+    }
+}
+
 function renderMemberDetail(memberId) {
     const member = state.members.find(m => String(m.id) === String(memberId));
     if (!member) return;
+    const printButton = document.getElementById("md-print-form-btn");
+    if (printButton) printButton.dataset.memberId = String(member.id);
 
     // 1. Info Header
     safeSetText("md-member-name", member.name);
