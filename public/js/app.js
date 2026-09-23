@@ -541,6 +541,7 @@ function ensureMissingViewScaffold() {
                         </div>
                         <div class="basket-method">
                             <label class="basket-method-label" for="basket-member-select">ربط بالمشترك (اختياري)</label>
+                            <input id="basket-member-search" class="form-control" type="search" placeholder="ابحث بالاسم أو رقم العضوية" aria-label="البحث عن مشترك للبيع" oninput="filterMemberSelect('basket-member-select', 'basket-member-search', true)">
                             <select id="basket-member-select" class="form-control basket-method-select"></select>
                         </div>
                         <button class="btn btn-primary basket-checkout-btn" onclick="checkoutBasket()">تأكيد عملية البيع</button>
@@ -1334,7 +1335,7 @@ function ensureFallbackModal(modalId) {
             title: "إضافة اشتراك",
             body: `
                 <form id="form-add-subscription" onsubmit="submitAddSubscription(event)">
-                    <div class="form-group"><label class="form-label">المشترك</label><select id="sub-input-member" class="form-control" required></select></div>
+                    <div class="form-group"><label class="form-label" for="sub-input-member">المشترك</label><input id="sub-member-search" class="form-control" type="search" placeholder="ابحث بالاسم أو رقم العضوية" aria-label="البحث عن مشترك للاشتراك" oninput="filterMemberSelect('sub-input-member', 'sub-member-search')" style="margin-bottom:8px;"><select id="sub-input-member" class="form-control" required></select></div>
                     <div class="form-group"><label class="form-label">الخطة</label><select id="sub-input-plan" class="form-control" onchange="updateSubPrice()"></select></div>
                     <div class="form-group"><label class="form-label">تاريخ البدء</label><input id="sub-input-start" class="form-control" type="date" required></div>
                     <div class="form-group"><label class="form-label">المدفوع</label><input id="sub-input-paid" class="form-control" type="number" step="0.01" required></div>
@@ -1371,7 +1372,7 @@ function ensureFallbackModal(modalId) {
             title: "إضافة دفعة",
             body: `
                 <form id="form-add-payment" onsubmit="submitAddPayment(event)">
-                    <div class="form-group"><label class="form-label">المشترك</label><select id="pay-input-member" class="form-control" required></select></div>
+                    <div class="form-group"><label class="form-label" for="pay-input-member">المشترك</label><input id="pay-member-search" class="form-control" type="search" placeholder="ابحث بالاسم أو رقم العضوية" aria-label="البحث عن مشترك للدفعة" oninput="filterMemberSelect('pay-input-member', 'pay-member-search')" style="margin-bottom:8px;"><select id="pay-input-member" class="form-control" required></select></div>
                     <div class="form-group"><label class="form-label">المبلغ</label><input id="pay-input-amount" class="form-control" type="number" step="0.01" required></div>
                     <div class="form-group"><label class="form-label">الطريقة</label><select id="pay-input-method" class="form-control" onchange="togglePaymentTransferAccountField('pay-input-method','pay-transfer-account-group','pay-input-transfer-from-account')"><option>نقدي</option><option>تحويل</option></select></div>
                     <div id="pay-transfer-account-group" class="form-group" style="display:none;"><label class="form-label">اسم الشخص أو الحساب المُحوِّل</label><input id="pay-input-transfer-from-account" class="form-control" type="text" placeholder="مثال: أحمد محمد أو حساب البنك الأهلي"></div>
@@ -1701,13 +1702,34 @@ function closeModal(modalId) {
     modal.classList.remove("active");
 }
 
-function populateDropdowns() {
-    // Populate subscription member list (sliced to 100 to prevent UI lag with 10k members)
-    const subMemberSelect = document.getElementById("sub-input-member");
-    if (subMemberSelect) {
-        const options = state.members.slice(0, 100).map(m => `<option value="${m.id}">${m.name} (${m.id})</option>`).join("");
-        subMemberSelect.innerHTML = `<option value="" disabled selected>${options ? '— اختر المشترك —' : 'لا يوجد مشتركون متاحون'}</option>${options}`;
+function filterMemberSelect(selectId, searchId, optional = false) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    const query = (document.getElementById(searchId)?.value || '').trim().toLocaleLowerCase();
+    const selectedId = select.value;
+    const members = Array.isArray(state.members) ? state.members : [];
+    const matches = members.filter(member =>
+        `${member.name || ''} ${member.id || ''}`.toLocaleLowerCase().includes(query)
+    );
+    const visible = matches.slice(0, 100);
+    const selectedMember = matches.find(member => String(member.id) === selectedId);
+    if (selectedMember && !visible.some(member => String(member.id) === selectedId)) {
+        visible.unshift(selectedMember);
     }
+
+    const placeholder = new Option(
+        optional ? '— مبيعات كاشير عامة —' : (matches.length ? '— اختر المشترك —' : 'لا يوجد مشترك مطابق'),
+        ''
+    );
+    placeholder.disabled = !optional;
+    select.replaceChildren(placeholder);
+    visible.forEach(member => select.add(new Option(`${member.name} (${member.id})`, String(member.id))));
+    select.value = selectedMember ? selectedId : '';
+}
+
+function populateDropdowns() {
+    filterMemberSelect('sub-input-member', 'sub-member-search');
 
     // Populate subscription plan list
     const subPlanSelect = document.getElementById("sub-input-plan");
@@ -1716,12 +1738,7 @@ function populateDropdowns() {
         updateSubPrice();
     }
 
-    // Populate payment member list (sliced to 100 to prevent UI lag with 10k members)
-    const payMemberSelect = document.getElementById("pay-input-member");
-    if (payMemberSelect) {
-        const options = state.members.slice(0, 100).map(m => `<option value="${m.id}">${m.name}</option>`).join("");
-        payMemberSelect.innerHTML = `<option value="" disabled selected>${options ? '— اختر المشترك —' : 'لا يوجد مشتركون متاحون'}</option>${options}`;
-    }
+    filterMemberSelect('pay-input-member', 'pay-member-search');
 
     // Populate user link member dropdowns (sliced to 100 to prevent UI lag with 10k members)
     const userMemberSelect = document.getElementById("user-input-member-id");
@@ -1734,11 +1751,7 @@ function populateDropdowns() {
         editUserMemberSelect.innerHTML = `<option value="">— لا يوجد ربط (موظف) —</option>` + state.members.slice(0, 100).map(m => `<option value="${m.id}">${m.name} (${m.id})</option>`).join("");
     }
 
-    // Populate POS basket member selection (sliced to 100 to prevent UI lag with 10k members)
-    const basketMemberSelect = document.getElementById("basket-member-select");
-    if (basketMemberSelect) {
-        basketMemberSelect.innerHTML = `<option value="">— مبيعات كاشير عامة —</option>` + state.members.slice(0, 100).map(m => `<option value="${m.id}">${m.name}</option>`).join("");
-    }
+    filterMemberSelect('basket-member-select', 'basket-member-search', true);
 
     const assignmentLabel = (a) => {
         const trainer = (state.trainers || []).find(t => Number(t.id) === Number(a.trainer_id));
