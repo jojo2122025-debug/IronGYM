@@ -2862,29 +2862,36 @@ function deletePlan(planId) {
     showAppNotice("يمكن حذف وتعديل باقات التدريب مباشرة من خلال قاعدة البيانات (phpMyAdmin) لتفادي أخطاء حذف باقات نشطة حالياً للأعضاء.", 'info', 6200);
 }
 
-function submitAddPlan(e) {
+async function submitAddPlan(e) {
     e.preventDefault();
-    const name = document.getElementById("plan-input-name").value;
-    const desc = document.getElementById("plan-input-desc").value;
-    const price = Number(document.getElementById("plan-input-price").value);
-    const days = Number(document.getElementById("plan-input-days").value);
+    const form = e.currentTarget || e.target;
+    const name = (document.getElementById("plan-input-name")?.value || '').trim();
+    const desc = (document.getElementById("plan-input-desc")?.value || '').trim();
+    const price = Number(document.getElementById("plan-input-price")?.value);
+    const days = Number(document.getElementById("plan-input-days")?.value);
 
-    fetch(resolveApiUrl('add_plan'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, desc, price, days })
-    })
-    .then(r => r.json())
-    .then(res => {
+    if (!name || !Number.isFinite(price) || price < 0 || !Number.isInteger(days) || days < 1) {
+        showAppNotice('يرجى إدخال اسم الخطة وسعر صالح وعدد أيام لا يقل عن يوم واحد.', 'error');
+        return;
+    }
+
+    const submitButton = form?.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    try {
+        const res = await postApi('add_plan', { name, desc, price, days });
         if (res.success) {
-            e.target.reset();
+            form?.reset();
             closeModal("modal-add-plan");
             showAppNotice("تم إنشاء باقة الاشتراك وحفظها بقاعدة البيانات!", 'success');
             loadStateAndRender("plans");
         } else {
-            showAppNotice("خطأ: " + res.error, 'error', 5200);
+            showAppNotice("خطأ أثناء حفظ الخطة: " + (res.error || 'تعذر إتمام العملية.'), 'error', 5200);
         }
-    });
+    } catch (error) {
+        showAppNotice("تعذر الاتصال بالخادم أثناء حفظ الخطة. أعد المحاولة.", 'error', 5200);
+    } finally {
+        if (submitButton) submitButton.disabled = false;
+    }
 }
 
 // View 6: Payments List
