@@ -505,7 +505,7 @@ function ensureMissingViewScaffold() {
             </div>
         `,
         expenses: `
-            <div class="card" style="margin-bottom:16px;"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><strong>إجمالي مصروفات <span id="expenses-month-label">هذا الشهر</span>: <span id="total-expenses-value">0 ₪</span></strong><button class="btn btn-primary" onclick="openModal('modal-add-expense')"><i data-lucide="plus"></i> إضافة مصروف</button></div></div>
+            <div class="card" style="margin-bottom:16px;"><div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><strong>إجمالي مصروفات <span id="expenses-month-label">هذا الشهر</span>:</strong><span id="total-expenses-value" style="font-size:26px;font-weight:800;letter-spacing:.3px;color:var(--danger-color, #ef4444);">0 ₪</span><button class="btn btn-primary" onclick="openModal('modal-add-expense')"><i data-lucide="plus"></i> إضافة مصروف</button></div></div>
             <div class="card table-responsive"><table class="custom-table"><thead><tr><th>التاريخ</th><th>البند</th><th>المستفيد</th><th>المبلغ</th><th>طريقة الدفع</th><th>ملاحظة</th><th>الإجراءات</th></tr></thead><tbody id="expenses-table-body"></tbody></table></div>
         `,
         products: `
