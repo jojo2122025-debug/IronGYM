@@ -3141,29 +3141,48 @@ class GymApiController extends Controller
         $members = $data['members'] ?? [];
         $subscriptions = $data['subscriptions'] ?? [];
         $payments = $data['payments'] ?? [];
+        if (!is_array($members) || !is_array($subscriptions) || !is_array($payments)) {
+            return response()->json(['success' => false, 'error' => 'بيانات الاستيراد غير صالحة'], 422);
+        }
 
         $importedMembers = 0;
         $updatedMembers = 0;
+        $skippedMembers = 0;
         $importedSubs = 0;
         $skippedSubs = 0;
         $importedPays = 0;
         $skippedPays = 0;
+        $skipDetails = [];
 
-        DB::transaction(function () use ($members, $subscriptions, $payments, &$importedMembers, &$updatedMembers, &$importedSubs, &$skippedSubs, &$importedPays, &$skippedPays) {
+        DB::transaction(function () use ($members, $subscriptions, $payments, &$importedMembers, &$updatedMembers, &$skippedMembers, &$importedSubs, &$skippedSubs, &$importedPays, &$skippedPays, &$skipDetails) {
+            $memberIdMap = [];
+            $memberNameMap = [];
             // 1. Process Members
-            foreach ($members as $m) {
+            foreach ($members as $rowIndex => $m) {
+                if (!is_array($m)) {
+                    $skippedMembers++;
+                    $this->recordImportSkip($skipDetails, 'مشتركين', $rowIndex, 'صف غير صالح');
+                    continue;
+                }
                 $name = trim($m['name'] ?? '');
                 $phone = trim($m['phone'] ?? '');
                 $whatsapp = trim($m['whatsapp'] ?? '');
                 $gender = trim($m['gender'] ?? 'ذكر');
-                if (empty($name) || empty($phone)) {
+                if ($name === '' || $phone === '' || mb_strlen($name) > 255 || mb_strlen($phone) > 20 || mb_strlen($whatsapp) > 30) {
+                    $skippedMembers++;
+                    $this->recordImportSkip($skipDetails, 'مشتركين', $rowIndex, 'اسم أو هاتف ناقص أو طويل');
                     continue;
                 }
                 if (!in_array($gender, ['ذكر', 'أنثى'])) {
                     $gender = 'ذكر';
                 }
-                $memberId = trim($m['id'] ?? '');
-                $existing = !empty($memberId) ? Member::find($memberId) : null;
+                $sourceId = trim((string) ($m['id'] ?? ''));
+                $memberId = $sourceId;
+                $existing = $sourceId !== '' ? Member::find($sourceId) : null;
+                if (!$existing) {
+                    $matches = Member::where('name', $name)->where('phone', $phone)->limit(2)->get();
+                    if ($matches->count() === 1) $existing = $matches->first();
+                }
                 if ($existing) {
                     $existing->update([
                         'name' => $name,
@@ -3172,10 +3191,9 @@ class GymApiController extends Controller
                         'gender' => $gender,
                     ]);
                     $updatedMembers++;
+                    $memberId = $existing->id;
                 } else {
-                    if (empty($memberId)) {
-                        $memberId = Member::generateNextId();
-                    } elseif (Member::find($memberId)) {
+                    if ($memberId === '' || mb_strlen($memberId) > 10) {
                         $memberId = Member::generateNextId();
                     }
                     Member::create([
@@ -3188,34 +3206,48 @@ class GymApiController extends Controller
                     ]);
                     $importedMembers++;
                 }
+                if ($sourceId !== '') $memberIdMap[$sourceId] = $memberId;
+                if (array_key_exists($name, $memberNameMap) && $memberNameMap[$name] !== $memberId) {
+                    $memberNameMap[$name] = null;
+                } else if (!array_key_exists($name, $memberNameMap)) {
+                    $memberNameMap[$name] = $memberId;
+                }
             }
 
             // 2. Process Subscriptions
-            foreach ($subscriptions as $s) {
-                $memberId = trim($s['member_id'] ?? '');
-                $planName = trim($s['plan_name'] ?? '');
+            foreach ($subscriptions as $rowIndex => $s) {
+                if (!is_array($s)) {
+                    $skippedSubs++;
+                    $this->recordImportSkip($skipDetails, 'اشتراكات', $rowIndex, 'صف غير صالح');
+                    continue;
+                }
+                $sourceId = trim((string) ($s['member_id'] ?? ''));
+                $memberName = trim((string) ($s['member_name'] ?? ''));
+                $member = $this->resolveImportMember($sourceId, $memberName, $memberIdMap, $memberNameMap);
+                $planName = trim((string) ($s['plan_name'] ?? ''));
                 $amount = (float) ($s['amount'] ?? 0);
                 $paid = (float) ($s['paid'] ?? 0);
                 $remaining = (float) ($s['remaining'] ?? 0);
-                $status = trim($s['status'] ?? 'فعال');
-                $startDate = trim($s['start_date'] ?? '');
-                $endDate = trim($s['end_date'] ?? '');
-                if (empty($memberId) || empty($planName) || empty($startDate) || empty($endDate)) {
+                $status = trim((string) ($s['status'] ?? 'فعال'));
+                $startDate = $this->normalizeImportDate($s['start_date'] ?? null);
+                $endDate = $this->normalizeImportDate($s['end_date'] ?? null);
+                if (!$member || $planName === '' || mb_strlen($planName) > 100 || !$startDate || !$endDate || $endDate < $startDate || !is_numeric($s['amount'] ?? null) || !is_numeric($s['paid'] ?? null) || !is_numeric($s['remaining'] ?? null) || $amount < 0 || $paid < 0 || $remaining < 0) {
+                    $skippedSubs++;
+                    $this->recordImportSkip($skipDetails, 'اشتراكات', $rowIndex, !$member ? 'المشترك غير موجود أو الاسم غير فريد' : 'خطة أو تاريخ أو مبلغ غير صالح');
                     continue;
                 }
-                if (!Member::find($memberId)) {
-                    continue;
-                }
+                $memberId = $member->id;
                 if (!in_array($status, ['فعال', 'منتهي', 'مجمد'])) {
                     $status = 'فعال';
                 }
                 $existing = Subscription::where('member_id', $memberId)
                     ->where('plan_name', $planName)
-                    ->where('start_date', $startDate)
-                    ->where('end_date', $endDate)
+                    ->whereDate('start_date', $startDate)
+                    ->whereDate('end_date', $endDate)
                     ->first();
                 if ($existing) {
                     $skippedSubs++;
+                    $this->recordImportSkip($skipDetails, 'اشتراكات', $rowIndex, 'اشتراك مكرر');
                     continue;
                 }
                 Subscription::create([
@@ -3234,21 +3266,28 @@ class GymApiController extends Controller
             }
 
             // 3. Process Payments
-            foreach ($payments as $p) {
-                $memberId = trim($p['member_id'] ?? '');
-                $memberName = trim($p['member_name'] ?? '');
-                $amount = (float) ($p['amount'] ?? 0);
-                $method = trim($p['method'] ?? 'نقدي');
-                $date = trim($p['date'] ?? '');
-                $note = trim($p['note'] ?? '');
-                if (($memberId === '' && $memberName === '') || $amount <= 0 || empty($date)) {
+            foreach ($payments as $rowIndex => $p) {
+                if (!is_array($p)) {
+                    $skippedPays++;
+                    $this->recordImportSkip($skipDetails, 'مدفوعات', $rowIndex, 'صف غير صالح');
                     continue;
                 }
-                $member = $memberId !== ''
-                    ? Member::find($memberId)
-                    : Member::where('name', $memberName)->orderBy('id')->first();
+                $sourceId = trim((string) ($p['member_id'] ?? ''));
+                $sourceName = trim((string) ($p['member_name'] ?? ''));
+                $amount = (float) ($p['amount'] ?? 0);
+                $method = trim((string) ($p['method'] ?? 'نقدي'));
+                $date = $this->normalizeImportDate($p['date'] ?? null, true);
+                $note = trim((string) ($p['note'] ?? ''));
+                $transferFromAccount = trim((string) ($p['transfer_from_account'] ?? ''));
+                if (($sourceId === '' && $sourceName === '') || !is_numeric($p['amount'] ?? null) || $amount <= 0 || !$date || mb_strlen($note) > 255 || mb_strlen($transferFromAccount) > 255) {
+                    $skippedPays++;
+                    $this->recordImportSkip($skipDetails, 'مدفوعات', $rowIndex, 'مشترك أو مبلغ أو تاريخ غير صالح');
+                    continue;
+                }
+                $member = $this->resolveImportMember($sourceId, $sourceName, $memberIdMap, $memberNameMap);
                 if (!$member) {
                     $skippedPays++;
+                    $this->recordImportSkip($skipDetails, 'مدفوعات', $rowIndex, 'المشترك غير موجود أو الاسم غير فريد');
                     continue;
                 }
                 $memberName = $member->name;
@@ -3256,13 +3295,15 @@ class GymApiController extends Controller
                 if (!in_array($method, ['نقدي', 'تحويل'])) {
                     $method = 'نقدي';
                 }
-                $existing = Payment::where('member_name', $memberName)
+                $existing = Payment::where('member_id', $memberId)
                     ->where('amount', $amount)
                     ->where('date', $date)
                     ->where('note', $note)
+                    ->where('method', $method)
                     ->first();
                 if ($existing) {
                     $skippedPays++;
+                    $this->recordImportSkip($skipDetails, 'مدفوعات', $rowIndex, 'دفعة مكررة');
                     continue;
                 }
                 Payment::create([
@@ -3272,23 +3313,70 @@ class GymApiController extends Controller
                     'date' => $date,
                     'amount' => $amount,
                     'method' => $method,
+                    'transfer_from_account' => $method === 'تحويل' ? ($transferFromAccount ?: null) : null,
                     'note' => $note,
                 ]);
                 $importedPays++;
             }
         });
 
-        ActivityLog::log('استيراد ذكي', "تم تنفيذ عملية الاستيراد الذكي للبيانات من ملف إكسل. تم إدخال {$importedMembers} مشترك جديد وتحديث {$updatedMembers}، وتم إدخال {$importedSubs} اشتراك (وتخطي {$skippedSubs})، وتم إدخال {$importedPays} سند قبض (وتخطي {$skippedPays})");
+        ActivityLog::log('استيراد ذكي', "تم الاستيراد: {$importedMembers} مشترك جديد، {$updatedMembers} محدّث، {$skippedMembers} متخطّى؛ {$importedSubs} اشتراك جديد و{$skippedSubs} متخطّى؛ {$importedPays} دفعة جديدة و{$skippedPays} متخطّاة");
 
         return response()->json([
             'success' => true,
             'imported_members_count' => $importedMembers,
             'updated_members_count' => $updatedMembers,
+            'skipped_members_count' => $skippedMembers,
             'imported_subs_count' => $importedSubs,
             'skipped_subs_count' => $skippedSubs,
             'imported_pays_count' => $importedPays,
             'skipped_pays_count' => $skippedPays,
+            'skip_details' => $skipDetails,
         ]);
+    }
+
+    protected function resolveImportMember(string $sourceId, string $sourceName, array $idMap, array $nameMap): ?Member
+    {
+        if ($sourceId !== '') {
+            $member = Member::find($idMap[$sourceId] ?? $sourceId);
+            if ($member) return $member;
+        }
+        if ($sourceName === '') return null;
+        if (array_key_exists($sourceName, $nameMap)) {
+            return $nameMap[$sourceName] ? Member::find($nameMap[$sourceName]) : null;
+        }
+        $matches = Member::where('name', $sourceName)->limit(2)->get();
+        return $matches->count() === 1 ? $matches->first() : null;
+    }
+
+    protected function normalizeImportDate(mixed $value, bool $withTime = false): ?string
+    {
+        if (!is_scalar($value)) return null;
+        $source = trim((string) $value);
+        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?(?:\.\d+Z?|Z)?$/', $source, $parts)) {
+            [$year, $month, $day] = [(int) $parts[1], (int) $parts[2], (int) $parts[3]];
+            $hour = (int) ($parts[4] ?? 0);
+            $minute = (int) ($parts[5] ?? 0);
+            $second = (int) ($parts[6] ?? 0);
+        } elseif (preg_match('/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/', $source, $parts)) {
+            [$year, $month, $day] = [(int) $parts[3], (int) $parts[2], (int) $parts[1]];
+            $hour = (int) ($parts[4] ?? 0);
+            $minute = (int) ($parts[5] ?? 0);
+            $second = (int) ($parts[6] ?? 0);
+        } else {
+            return null;
+        }
+        if (!checkdate($month, $day, $year) || $hour > 23 || $minute > 59 || $second > 59) return null;
+        $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
+        return $withTime ? $date . sprintf(' %02d:%02d:%02d', $hour, $minute, $second) : $date;
+    }
+
+    protected function recordImportSkip(array &$details, string $section, int|string $rowIndex, string $reason): void
+    {
+        if (count($details) < 20) {
+            $rowNumber = is_int($rowIndex) ? $rowIndex + 2 : $rowIndex;
+            $details[] = "{$section}، الصف {$rowNumber}: {$reason}";
+        }
     }
 
     protected function globalSearch(Request $request): JsonResponse

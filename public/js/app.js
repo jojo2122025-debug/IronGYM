@@ -953,10 +953,11 @@ function ensureMissingViewScaffold() {
                     <div class="card" style="margin-bottom: 12px;">
                         <div id="import-filename-label" style="font-weight: 700; margin-bottom: 8px;">—</div>
                         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                            <span>مشتركين: <strong id="import-count-members">0</strong></span>
-                            <span>اشتراكات: <strong id="import-count-subscriptions">0</strong></span>
-                            <span>مدفوعات: <strong id="import-count-payments">0</strong></span>
+                            <span>صفوف مشتركين مقروءة: <strong id="import-count-members">0</strong></span>
+                            <span>صفوف اشتراكات مقروءة: <strong id="import-count-subscriptions">0</strong></span>
+                            <span>صفوف مدفوعات مقروءة: <strong id="import-count-payments">0</strong></span>
                         </div>
+                        <small style="color:var(--text-muted);">هذه أعداد الصفوف المقروءة. ستظهر أعداد المحفوظ والمتخطّى بعد التحقق والاستيراد.</small>
                     </div>
                     <div class="card" style="margin-bottom: 10px;">
                         <div style="display:flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
@@ -977,6 +978,7 @@ function ensureMissingViewScaffold() {
                     <button id="btn-execute-import" class="btn btn-primary" onclick="submitSmartImport()">
                         <i data-lucide="check"></i><span>بدء الاستيراد الذكي وتصفية المكررات</span>
                     </button>
+                    <div id="import-result-container" class="card" style="display:none;margin-top:12px;"></div>
                 </div>
             </div>
         `,
@@ -4339,7 +4341,7 @@ function isViewAllowed(viewName) {
     const role = state.currentUser.role;
 
     if (role === 'مدير النظام' || role === 'مدير الصالة') {
-        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'plans', 'payments', 'expenses', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'activity-log', 'global-search'].includes(viewName);
+        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'plans', 'payments', 'expenses', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'activity-log', 'global-search', ...(role === 'مدير النظام' ? ['import'] : [])].includes(viewName);
     }
 
     const permissions = {
@@ -6241,6 +6243,7 @@ function renderImportView() {
     // Reset dropzone and results container
     document.getElementById("import-summary-container").style.display = "none";
     document.getElementById("import-file-input").value = "";
+    document.getElementById("import-result-container").style.display = "none";
     
     // Reset parsed data
     parsedImportData = {
@@ -6293,13 +6296,60 @@ function onImportFileSelected(e) {
     }
 }
 
+function importCell(row, keys, fallback = '') {
+    for (const key of keys) {
+        const value = row[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    }
+    return fallback;
+}
+
+function normalizeImportDate(value, withTime = false) {
+    if (typeof value === 'number' && typeof XLSX !== 'undefined' && XLSX.SSF?.parse_date_code) {
+        const parts = XLSX.SSF.parse_date_code(value);
+        if (parts) {
+            const pad = number => String(number || 0).padStart(2, '0');
+            return `${parts.y}-${pad(parts.m)}-${pad(parts.d)}` + (withTime ? ` ${pad(parts.H)}:${pad(parts.M)}:${pad(parts.S)}` : '');
+        }
+    }
+    const source = String(value ?? '').trim();
+    const dayFirst = source.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(.*)$/);
+    if (dayFirst) {
+        const pad = number => String(number).padStart(2, '0');
+        return `${dayFirst[3]}-${pad(dayFirst[2])}-${pad(dayFirst[1])}${withTime ? dayFirst[4] : ''}`.trim();
+    }
+    return source;
+}
+
+function importSheetType(sheetName, rows) {
+    const name = sheetName.toLocaleLowerCase();
+    if (name.includes('اشتراك') || name.includes('sub')) return 'subscriptions';
+    if (name.includes('مدفوع') || name.includes('pay')) return 'payments';
+    if (name.includes('مشترك') || name.includes('member')) return 'members';
+    const headers = Object.keys(rows[0] || {}).map(key => key.trim().toLocaleLowerCase());
+    const has = (...terms) => terms.some(term => headers.includes(term));
+    if (has('تاريخ البدء', 'البداية', 'start_date', 'start date') && has('اسم الباقة', 'اسم الاشتراك', 'الخطة', 'plan_name', 'plan name')) return 'subscriptions';
+    if (has('تاريخ الدفع', 'التاريخ', 'المبلغ المدفوع', 'طريقة الدفع', 'payment date', 'method') && has('المبلغ المدفوع', 'المبلغ', 'amount', 'Amount')) return 'payments';
+    if (has('رقم الجوال', 'الجوال', 'phone') && has('الاسم الكامل', 'الاسم', 'name')) return 'members';
+    return null;
+}
+
 function handleImportFile(file) {
     if (!file) return;
+    document.getElementById('import-result-container').style.display = 'none';
+    document.getElementById('import-summary-container').style.display = 'none';
+    parsedImportData = { members: [], subscriptions: [], payments: [] };
+    const submitButton = document.getElementById('btn-execute-import');
+    submitButton.disabled = false;
     
     // Check file extension
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext !== 'xlsx' && ext !== 'xls' && ext !== 'csv') {
         showAppNotice("ملف غير صالح! يرجى اختيار ملف إكسل (.xlsx, .xls) أو ملف CSV.");
+        return;
+    }
+    if (typeof XLSX === 'undefined') {
+        showAppNotice('تعذر تحميل أداة قراءة Excel وCSV. تحقق من اتصال الإنترنت ثم أعد فتح الصفحة.', 'error', 6200);
         return;
     }
 
@@ -6309,63 +6359,45 @@ function handleImportFile(file) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             
-            // Temporary variables to parse
-            let rawMembers = [];
-            let rawSubs = [];
-            let rawPays = [];
-
-            // Parse Sheet 1: المشتركون (Members)
-            const membersSheetName = workbook.SheetNames.find(name => name.includes("مشترك") || name.toLowerCase().includes("member"));
-            if (membersSheetName) {
-                const sheet = workbook.Sheets[membersSheetName];
-                const json = XLSX.utils.sheet_to_json(sheet);
-                rawMembers = json.map(row => {
-                    // Match Arabic / English column headers
-                    return {
-                        id: String(row['رقم العضوية'] || row['رقم المشترك'] || row['id'] || row['ID'] || '').trim(),
-                        name: String(row['الاسم الكامل'] || row['الاسم'] || row['name'] || row['Name'] || '').trim(),
-                        phone: String(row['رقم الجوال'] || row['الجوال'] || row['phone'] || row['Phone'] || '').trim(),
-                        whatsapp: String(row['رقم الواتساب'] || row['الواتساب'] || row['whatsapp'] || row['WhatsApp'] || '').trim(),
-                        gender: String(row['الجنس'] || row['gender'] || row['Gender'] || 'ذكر').trim()
-                    };
-                }).filter(m => m.name !== "");
-            }
-
-            // Parse Sheet 2: الاشتراكات (Subscriptions)
-            const subsSheetName = workbook.SheetNames.find(name => name.includes("اشتراك") || name.toLowerCase().includes("sub"));
-            if (subsSheetName) {
-                const sheet = workbook.Sheets[subsSheetName];
-                const json = XLSX.utils.sheet_to_json(sheet);
-                rawSubs = json.map(row => {
-                    return {
-                        member_id: String(row['رقم العضوية'] || row['رقم المشترك'] || row['member_id'] || row['Member ID'] || '').trim(),
-                        plan_name: String(row['اسم الباقة'] || row['اسم الاشتراك'] || row['الخطة'] || row['plan_name'] || row['Plan Name'] || '').trim(),
-                        amount: Number(row['القيمة الكلية'] || row['القيمة'] || row['السعر'] || row['amount'] || row['Amount'] || 0),
-                        paid: Number(row['المدفوع'] || row['paid'] || row['Paid'] || 0),
-                        remaining: Number(row['المتبقي'] || row['remaining'] || row['Remaining'] || 0),
-                        status: String(row['الحالة'] || row['status'] || row['Status'] || 'فعال').trim(),
-                        start_date: String(row['تاريخ البدء'] || row['البداية'] || row['start_date'] || row['Start Date'] || '').trim(),
-                        end_date: String(row['تاريخ الانتهاء'] || row['النهاية'] || row['end_date'] || row['End Date'] || '').trim()
-                    };
-                }).filter(s => s.member_id !== "" && s.plan_name !== "");
-            }
-
-            // Parse Sheet 3: المدفوعات (Payments)
-            const paysSheetName = workbook.SheetNames.find(name => name.includes("مدفوع") || name.toLowerCase().includes("pay"));
-            if (paysSheetName) {
-                const sheet = workbook.Sheets[paysSheetName];
-                const json = XLSX.utils.sheet_to_json(sheet);
-                rawPays = json.map(row => {
-                    return {
-                        member_id: String(row['رقم العضوية'] || row['رقم المشترك'] || row['member_id'] || row['Member ID'] || '').trim(),
-                        member_name: String(row['اسم المشترك'] || row['الاسم'] || row['member_name'] || row['Member Name'] || '').trim(),
-                        amount: Number(row['المبلغ المدفوع'] || row['المبلغ'] || row['amount'] || row['Amount'] || 0),
-                        method: String(row['طريقة الدفع'] || row['الطريقة'] || row['method'] || row['Method'] || 'نقدي').trim(),
-                        date: String(row['تاريخ الدفع'] || row['التاريخ'] || row['date'] || row['Date'] || '').trim(),
-                        note: String(row['ملاحظة'] || row['ملاحظات'] || row['note'] || row['Note'] || '').trim()
-                    };
-                }).filter(p => (p.member_id !== "" || p.member_name !== "") && p.amount > 0);
-            }
+            const rawMembers = [];
+            const rawSubs = [];
+            const rawPays = [];
+            workbook.SheetNames.forEach(sheetName => {
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+                if (!json.length) return;
+                const type = importSheetType(sheetName, json);
+                if (type === 'members') {
+                    json.forEach(row => rawMembers.push({
+                        id: String(importCell(row, ['رقم العضوية', 'رقم المشترك', 'id', 'ID'])).trim(),
+                        name: String(importCell(row, ['الاسم الكامل', 'الاسم', 'name', 'Name'])).trim(),
+                        phone: String(importCell(row, ['رقم الجوال', 'الجوال', 'phone', 'Phone'])).trim(),
+                        whatsapp: String(importCell(row, ['رقم الواتساب', 'الواتساب', 'whatsapp', 'WhatsApp'])).trim(),
+                        gender: String(importCell(row, ['الجنس', 'gender', 'Gender'], 'ذكر')).trim()
+                    }));
+                } else if (type === 'subscriptions') {
+                    json.forEach(row => rawSubs.push({
+                        member_id: String(importCell(row, ['رقم العضوية', 'رقم المشترك', 'member_id', 'Member ID'])).trim(),
+                        member_name: String(importCell(row, ['اسم المشترك', 'الاسم', 'member_name', 'Member Name'])).trim(),
+                        plan_name: String(importCell(row, ['اسم الباقة', 'اسم الاشتراك', 'الخطة', 'plan_name', 'Plan Name'])).trim(),
+                        amount: Number(importCell(row, ['القيمة الكلية', 'القيمة', 'السعر', 'amount', 'Amount'], 0)),
+                        paid: Number(importCell(row, ['المدفوع', 'paid', 'Paid'], 0)),
+                        remaining: Number(importCell(row, ['المتبقي', 'remaining', 'Remaining'], 0)),
+                        status: String(importCell(row, ['الحالة', 'status', 'Status'], 'فعال')).trim(),
+                        start_date: normalizeImportDate(importCell(row, ['تاريخ البدء', 'البداية', 'start_date', 'Start Date'])),
+                        end_date: normalizeImportDate(importCell(row, ['تاريخ الانتهاء', 'النهاية', 'end_date', 'End Date']))
+                    }));
+                } else if (type === 'payments') {
+                    json.forEach(row => rawPays.push({
+                        member_id: String(importCell(row, ['رقم العضوية', 'رقم المشترك', 'member_id', 'Member ID'])).trim(),
+                        member_name: String(importCell(row, ['اسم المشترك', 'الاسم', 'member_name', 'Member Name'])).trim(),
+                        amount: Number(importCell(row, ['المبلغ المدفوع', 'المبلغ', 'amount', 'Amount'], 0)),
+                        method: String(importCell(row, ['طريقة الدفع', 'الطريقة', 'method', 'Method'], 'نقدي')).trim(),
+                        transfer_from_account: String(importCell(row, ['اسم الشخص أو الحساب المحول', 'الحساب المحول منه', 'transfer_from_account', 'Transfer From Account'])).trim(),
+                        date: normalizeImportDate(importCell(row, ['تاريخ الدفع', 'التاريخ', 'date', 'Date']), true),
+                        note: String(importCell(row, ['ملاحظة', 'ملاحظات', 'note', 'Note'])).trim()
+                    }));
+                }
+            });
 
             // Assign to state variables
             parsedImportData.members = rawMembers;
@@ -6505,15 +6537,12 @@ function submitSmartImport() {
         lucide.createIcons();
 
         if (res.success) {
-            showAppNotice(`تم الانتهاء من الاستيراد الذكي وتصفية التكرارات بنجاح!\n\n` +
-                  `المشتركين: تم إضافة ${res.imported_members_count} جديد وتحديث ${res.updated_members_count}.\n` +
-                  `الاشتراكات: تم إضافة ${res.imported_subs_count} جديد (وتخطي ${res.skipped_subs_count} مكرر).\n` +
-                  `المدفوعات: تم إضافة ${res.imported_pays_count} جديد (وتخطي ${res.skipped_pays_count} مكرر).`);
-            
-            // Reset page and reload state
-            renderImportView();
-            loadStateAndRender("dashboard");
-            switchView("dashboard");
+            const result = document.getElementById('import-result-container');
+            const skipped = (res.skipped_members_count || 0) + (res.skipped_subs_count || 0) + (res.skipped_pays_count || 0);
+            result.innerHTML = `<strong>نتيجة الاستيراد</strong><p>المشتركون: ${res.imported_members_count} جديد، ${res.updated_members_count} محدّث، ${res.skipped_members_count || 0} متخطّى.</p><p>الاشتراكات: ${res.imported_subs_count} جديد، ${res.skipped_subs_count} متخطّى.</p><p>المدفوعات: ${res.imported_pays_count} جديد، ${res.skipped_pays_count} متخطّى.</p>${skipped ? `<p>أمثلة على الصفوف المتخطّاة:</p><ul>${(res.skip_details || []).map(detail => `<li>${escapeHtml(detail)}</li>`).join('')}</ul>` : ''}`;
+            result.style.display = 'block';
+            btn.disabled = true;
+            showAppNotice('اكتمل الاستيراد. راجع الأعداد والصفوف المتخطّاة أدناه.', 'success', 6200);
         } else {
             showAppNotice("فشل الاستيراد: " + res.error);
         }
