@@ -2768,6 +2768,11 @@ function submitAddSubscription(e) {
 function renderPlans() {
     const grid = document.getElementById("plans-grid");
     if (grid) {
+        if (!Array.isArray(state.plans) || state.plans.length === 0) {
+            grid.innerHTML = `<div class="card dashboard-empty">لا توجد أنواع اشتراكات حالياً. أضف خطة جديدة للبدء.</div>`;
+            return;
+        }
+
         grid.innerHTML = state.plans.map(p => `
             <div class="card plan-card">
                 <div class="plan-card-actions">
@@ -4136,12 +4141,12 @@ function isViewAllowed(viewName) {
     const role = state.currentUser.role;
 
     if (role === 'مدير النظام' || role === 'مدير الصالة') {
-        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'global-search'].includes(viewName);
+        return ['dashboard', 'check-in', 'members', 'member-detail', 'subscriptions', 'plans', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'users', 'global-search'].includes(viewName);
     }
 
     const permissions = {
         'موظف الاستقبال': ['check-in', 'members', 'member-detail', 'trainers', 'notifications', 'sync-center', 'sync-event-detail', 'global-search'],
-        'المحاسب': ['subscriptions', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'member-detail', 'global-search'],
+        'المحاسب': ['subscriptions', 'plans', 'payments', 'products', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'member-detail', 'global-search'],
         'المدقق المالي': ['subscriptions', 'payments', 'reports', 'notifications', 'sync-center', 'sync-event-detail', 'trainers', 'activity-log', 'member-detail', 'global-search'],
         'مدرب': ['trainer-portal'],
         'مشترك': ['member-portal']
