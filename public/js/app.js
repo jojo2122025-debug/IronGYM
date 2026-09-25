@@ -52,6 +52,39 @@ const state = {
 
 let currentView = "dashboard";
 const OFFLINE_QUEUE_KEY = "gym_offline_sync_queue_v1";
+const THEME_STORAGE_KEY = 'irongym_theme_v1';
+const AVAILABLE_THEMES = ['default', 'ocean', 'royal', 'sand', 'frost'];
+
+function currentTheme() {
+    const theme = document.documentElement.dataset.theme || 'default';
+    return AVAILABLE_THEMES.includes(theme) ? theme : 'default';
+}
+
+function renderThemeSettings() {
+    const selected = currentTheme();
+    document.querySelectorAll('[data-theme-option]').forEach(option => {
+        const active = option.dataset.themeOption === selected;
+        option.setAttribute('aria-pressed', String(active));
+        option.querySelector('.theme-option-state').textContent = active ? 'المظهر الحالي' : 'اختيار';
+    });
+}
+
+function setAppTheme(theme) {
+    if (!AVAILABLE_THEMES.includes(theme)) return;
+    if (theme === 'default') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = theme;
+
+    const colors = { default: '#ef4444', ocean: '#087d88', royal: '#7356b8', sand: '#b05a3c', frost: '#2766b1' };
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors[theme]);
+    const status = document.getElementById('theme-save-status');
+    try {
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+        if (status) status.textContent = 'تم حفظ المظهر على هذا المتصفح.';
+    } catch (_) {
+        if (status) status.textContent = 'تم تطبيق المظهر مؤقتًا، لكن المتصفح منع حفظه.';
+    }
+    renderThemeSettings();
+}
 
 function resolveApiUrl(action) {
     return `/api/${String(action || '').toLowerCase()}`;
@@ -68,6 +101,11 @@ let charts = {
 // 1. Initial State Loading on Startup
 document.addEventListener("DOMContentLoaded", () => {
     const loginContainer = document.getElementById("login-container");
+    document.getElementById('view-settings')?.addEventListener('click', event => {
+        const option = event.target.closest('[data-theme-option]');
+        if (option) setAppTheme(option.dataset.themeOption);
+    });
+    renderThemeSettings();
     // Initialize Navigation Side Links
     const navLinks = document.querySelectorAll(".sidebar-nav .nav-link");
     navLinks.forEach(link => {
@@ -1140,7 +1178,8 @@ function switchView(viewName) {
         "member-portal": { tag: "بوابة المشترك", title: "بوابة المشترك", desc: "استعراض اشتراكاتك ومدفوعاتك ومشترياتك" },
         "trainer-portal": { tag: "بوابة المدرب", title: "بوابة المدرب", desc: "المشتركين المرتبطين بهذا المدرب" },
         "member-detail": { tag: "الملف الشخصي", title: "الملف الشخصي للمشترك", desc: "تفاصيل ملف العضوية والقياسات والبرامج المالية" },
-        "global-search": { tag: "البحث الشامل", title: "الاستعلام الشامل", desc: "استعلام متقدم وبحث شامل في السجلات والتقارير المالية" }
+        "global-search": { tag: "البحث الشامل", title: "الاستعلام الشامل", desc: "استعلام متقدم وبحث شامل في السجلات والتقارير المالية" },
+        settings: { tag: "الإعدادات", title: "إعدادات النظام", desc: "تخصيص مظهر التطبيق على هذا المتصفح" }
     };
 
     if (headerConfigs[viewName] && headerTag && headerTitle && headerDesc) {
@@ -1164,6 +1203,8 @@ function switchView(viewName) {
             // Fetch state which contains role portal data.
             loadStateAndRender(viewName);
         }
+    } else if (viewName === 'settings') {
+        renderThemeSettings();
     } else if (viewName !== 'components') {
         // Load state from DB and then render the panel
         loadStateAndRender(viewName);
@@ -1196,7 +1237,7 @@ function updateViewQueryParams(viewName) {
     url.searchParams.delete('view');
     url.searchParams.delete('syncEventId');
 
-    if (viewName === 'components' || viewName === 'sync-center' || viewName === 'sync-event-detail') {
+    if (viewName === 'components' || viewName === 'settings' || viewName === 'sync-center' || viewName === 'sync-event-detail') {
         url.searchParams.set('view', viewName);
     }
 
@@ -1228,6 +1269,9 @@ function triggerViewRenderer(viewName) {
     switch (viewName) {
         case "dashboard":
             renderDashboard();
+            break;
+        case "settings":
+            renderThemeSettings();
             break;
         case "check-in":
             renderCheckIn();
@@ -4022,6 +4066,17 @@ function runNotificationJobs() {
 }
 
 // 5. Chart.js render engines (with MySQL values)
+function chartThemeColor(token, fallback) {
+    return getComputedStyle(document.documentElement).getPropertyValue(token).trim() || fallback;
+}
+
+function chartColorWithAlpha(hex, alpha) {
+    const value = hex.replace('#', '');
+    if (!/^[\da-f]{6}$/i.test(value)) return hex;
+    const components = [0, 2, 4].map(offset => parseInt(value.slice(offset, offset + 2), 16));
+    return `rgba(${components.join(',')},${alpha})`;
+}
+
 function initRevenueChart(canvasId, type, days = 7) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
@@ -4042,14 +4097,17 @@ function initRevenueChart(canvasId, type, days = 7) {
         values.push(Number(toNumber(state.revenueHistory?.[key]).toFixed(2)));
     }
 
+    const accent = chartThemeColor('--accent-red', '#ef4444');
+    const muted = chartThemeColor('--text-muted', '#9ca3af');
+
     charts[chartKey] = new Chart(ctx, {
         type: 'line',
         data: {
             labels,
             datasets: [{
                 data: values,
-                borderColor: '#ef4444',
-                backgroundColor: createGradient(ctx.getContext('2d'), 'rgba(239,68,68,0.28)', 'rgba(239,68,68,0.02)'),
+                borderColor: accent,
+                backgroundColor: createGradient(ctx.getContext('2d'), chartColorWithAlpha(accent, 0.28), chartColorWithAlpha(accent, 0.02)),
                 borderWidth: 2,
                 fill: true,
                 tension: 0.35,
@@ -4066,11 +4124,11 @@ function initRevenueChart(canvasId, type, days = 7) {
             scales: {
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#9ca3af', font: { family: 'Figtree' } }
+                    ticks: { color: muted, font: { family: 'Figtree' } }
                 },
                 y: {
                     ticks: {
-                        color: '#9ca3af',
+                        color: muted,
                         callback: (v) => `${v} ₪`
                     },
                     beginAtZero: true
@@ -4095,13 +4153,15 @@ function initAttendanceChart(canvasId, type, range = 'day') {
     const peakData = state.peakHoursByRange?.[range] || state.peakHours || {};
     const dataValues = hours.map(h => peakData[h] || 0);
 
+    const chartBlue = chartThemeColor('--accent-blue', '#3b82f6');
+    const muted = chartThemeColor('--text-muted', '#9ca3af');
     charts[chartKey] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: hours,
             datasets: [{
                 data: dataValues,
-                backgroundColor: '#3b82f6',
+                backgroundColor: chartBlue,
                 borderRadius: 4,
                 barPercentage: 0.5
             }]
@@ -4115,11 +4175,11 @@ function initAttendanceChart(canvasId, type, range = 'day') {
             scales: {
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#9ca3af', font: { family: 'Figtree' } }
+                    ticks: { color: muted, font: { family: 'Figtree' } }
                 },
                 y: {
                     grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    ticks: { color: '#9ca3af', font: { family: 'Figtree' } },
+                    ticks: { color: muted, font: { family: 'Figtree' } },
                     min: 0,
                     suggestedMax: 4,
                     stepSize: 1
@@ -4328,6 +4388,7 @@ function getDefaultViewForRole(role) {
 function isViewAllowed(viewName) {
     if (!state.currentUser) return false;
     if (viewName === 'components') return true;
+    if (viewName === 'settings') return true;
     const role = state.currentUser.role;
 
     if (role === 'مدير النظام' || role === 'مدير الصالة') {

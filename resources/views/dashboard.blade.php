@@ -140,6 +140,10 @@
                     <i data-lucide="file-clock"></i>
                     <span>سجل الحركات</span>
                 </a>
+                <a class="nav-link" data-view="settings" id="nav-settings">
+                    <i data-lucide="settings-2"></i>
+                    <span>إعدادات النظام</span>
+                </a>
                 <a class="nav-link" data-view="member-portal" id="nav-member-portal" style="display: none;">
                     <i data-lucide="user"></i>
                     <span>بوابة المشترك</span>
@@ -193,6 +197,26 @@
                     <p class="header-desc">انتقل مباشرةً إلى القسم الذي تحتاجه.</p>
                     <div id="components-grid" class="components-grid"></div>
                 </div>
+            </div>
+            <div id="view-settings" class="view-panel">
+                <section class="theme-settings card" aria-labelledby="theme-settings-title">
+                    <div class="theme-settings-heading">
+                        <div>
+                            <span class="theme-settings-kicker">تخصيص الواجهة</span>
+                            <h2 id="theme-settings-title">اختر مظهر IRONGYM</h2>
+                            <p>خمسة مظاهر مختلفة. يُحفظ اختيارك على هذا المتصفح فقط، دون تغيير إعدادات الآخرين.</p>
+                        </div>
+                        <i data-lucide="palette" aria-hidden="true"></i>
+                    </div>
+                    <div class="theme-options" role="group" aria-label="مظهر التطبيق">
+                        <button type="button" class="theme-option" data-theme-option="default" aria-pressed="true"><span class="theme-preview theme-preview-default" aria-hidden="true"><span></span><span></span><span></span></span><strong>الأصلي</strong><small>فحمي وأحمر · المظهر الحالي</small><span class="theme-option-state">المظهر الحالي</span></button>
+                        <button type="button" class="theme-option" data-theme-option="ocean" aria-pressed="false"><span class="theme-preview theme-preview-ocean" aria-hidden="true"><span></span><span></span><span></span></span><strong>المحيط</strong><small>أزرق عميق ولمسات تركوازية</small><span class="theme-option-state">اختيار</span></button>
+                        <button type="button" class="theme-option" data-theme-option="royal" aria-pressed="false"><span class="theme-preview theme-preview-royal" aria-hidden="true"><span></span><span></span><span></span></span><strong>الملكي</strong><small>بنفسجي ليلي وذهبي هادئ</small><span class="theme-option-state">اختيار</span></button>
+                        <button type="button" class="theme-option" data-theme-option="sand" aria-pressed="false"><span class="theme-preview theme-preview-sand" aria-hidden="true"><span></span><span></span><span></span></span><strong>الرملي</strong><small>ورق دافئ وطيني · مظهر فاتح</small><span class="theme-option-state">اختيار</span></button>
+                        <button type="button" class="theme-option" data-theme-option="frost" aria-pressed="false"><span class="theme-preview theme-preview-frost" aria-hidden="true"><span></span><span></span><span></span></span><strong>الجليدي</strong><small>أبيض بارد وأزرق · مظهر فاتح</small><span class="theme-option-state">اختيار</span></button>
+                    </div>
+                    <p id="theme-save-status" class="theme-save-status" role="status" aria-live="polite"></p>
+                </section>
             </div>
             <div id="view-dashboard" class="view-panel active">
                 <section class="dashboard-today" aria-labelledby="dashboard-today-title" aria-busy="true">
